@@ -26,17 +26,17 @@ type SearchResponse = {
 export async function POST(request: Request) {
   try {
     const data: SearchRequest = await request.json();
-    
+
     // Get query params
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    
+    const page = parseInt(searchParams.get("page") || "1", 10);
+
     // Get enabled polygon indices if provided in the request body
     let enabledPolygonIndices = data.enabledPolygonIndices;
 
     // 1. Use custom locations if provided, otherwise use hardcoded ones
     let driveTimePolygons: DriveTimePolygon[] = [];
-    
+
     if (data.locations && data.locations.length > 0) {
       // Process provided locations
       // 1. Geocode all addresses
@@ -61,11 +61,15 @@ export async function POST(request: Request) {
     }
 
     // 3. Search for properties within the combined area and budget with pagination
-    const searchResults = await searchProperties({
-      polygon: null, // Unused now, we filter by polygons inside searchProperties
-      maxMonthlyPayment: data.budget.maxPerMonth,
-      downPaymentPercent: data.budget.downPaymentPercent,
-    }, page, data.enabledPolygonIndices);
+    const searchResults = await searchProperties(
+      {
+        polygon: null, // Unused now, we filter by polygons inside searchProperties
+        maxMonthlyPayment: data.budget.maxPerMonth,
+        downPaymentPercent: data.budget.downPaymentPercent,
+      },
+      page,
+      data.enabledPolygonIndices
+    );
 
     // 4. Return the results
     return NextResponse.json(searchResults);
@@ -80,11 +84,11 @@ export async function GET(request: Request) {
   try {
     // Get query params
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    
+    const page = parseInt(searchParams.get("page") || "1", 10);
+
     // Get enabled polygon indices if provided in the query string
     let enabledPolygonIndices: number[] | undefined = undefined;
-    const indicesParam = searchParams.get('enabledPolygonIndices');
+    const indicesParam = searchParams.get("enabledPolygonIndices");
     if (indicesParam) {
       try {
         enabledPolygonIndices = JSON.parse(indicesParam);
@@ -92,13 +96,17 @@ export async function GET(request: Request) {
         console.warn("Failed to parse enabledPolygonIndices:", e);
       }
     }
-    
+
     // Search for properties with default parameters
-    const searchResults = await searchProperties({
-      polygon: null, // No geographic constraints
-      maxMonthlyPayment: 3000, // Default maximum monthly payment
-      downPaymentPercent: 20, // Default down payment percentage
-    }, page, enabledPolygonIndices);
+    const searchResults = await searchProperties(
+      {
+        polygon: null, // No geographic constraints
+        maxMonthlyPayment: 5000, // Default maximum monthly payment
+        downPaymentPercent: 3.5, // Default down payment percentage
+      },
+      page,
+      enabledPolygonIndices
+    );
 
     return NextResponse.json(searchResults);
   } catch (error) {

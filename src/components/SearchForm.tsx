@@ -68,7 +68,7 @@ export function SearchForm({ onSubmit: externalSubmit }: SearchFormProps) {
     defaultValues: {
       locations: [{ address: "", driveTime: "15 min" }],
       budget: {
-        maxPerMonth: 3000,
+        maxPerMonth: 5000,
         downPaymentPercent: 3.5,
       },
     },
@@ -182,7 +182,7 @@ export function SearchForm({ onSubmit: externalSubmit }: SearchFormProps) {
                   {...register("budget.maxPerMonth")}
                   type="number"
                   className="w-full p-2 pl-6 border rounded-md"
-                  placeholder="3000"
+                  placeholder="5000"
                 />
               </div>
               {errors.budget?.maxPerMonth && (
