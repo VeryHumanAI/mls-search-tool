@@ -35,10 +35,28 @@ export function PropertyResults({ results }: PropertyResultsProps) {
   const [isMounted, setIsMounted] = useState(false);
   const [activeView, setActiveView] = useState<"grid" | "map">("grid");
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  
+  // State for isochrone visibility and highlight
+  const [visibleIsochrones, setVisibleIsochrones] = useState<{[key: number]: boolean}>({});
+  const [hoveredIsochrones, setHoveredIsochrones] = useState<Set<number>>(new Set());
+  
+  // Keep references to the GeoJSON layers
+  const layerRefs = useRef<{[key: number]: any}>({});
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Initialize visibility state for all isochrones to true (all visible)
+  useEffect(() => {
+    if (results.driveTimePolygons.length > 0) {
+      const initialVisibility = {};
+      results.driveTimePolygons.forEach((_, index) => {
+        initialVisibility[index] = true;
+      });
+      setVisibleIsochrones(initialVisibility);
+    }
+  }, [results.driveTimePolygons]);
 
   useEffect(() => {
     // Configure Leaflet icon here since it requires window
@@ -145,15 +163,100 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       {/* Map View */}
       {activeView === "map" && (
         <div className="bg-white rounded-lg overflow-hidden shadow border">
-          {/* Debug info */}
-          <div className="p-2 bg-gray-100 text-sm">
-            <div>Properties: {properties.length}</div>
-            <div>Polygons: {results.driveTimePolygons.length}</div>
-            {results.driveTimePolygons.map((p, i) => (
-              <div key={i} className="text-xs">
-                Polygon {i}: {p.address} ({p.driveTime}) - Type: {p.geoJson?.type || "unknown"}
-              </div>
-            ))}
+          {/* Isochrone Controls */}
+          <div className="p-3 bg-gray-100 text-sm border-b">
+            <h4 className="font-semibold mb-2">Drive Time Areas</h4>
+            <div className="grid grid-cols-1 gap-1">
+              {results.driveTimePolygons.map((p, i) => (
+                <div 
+                  key={i} 
+                  className={`
+                    flex items-center p-1.5 text-sm rounded cursor-pointer
+                    ${hoveredIsochrones.has(i) ? 'bg-blue-100' : ''}
+                    ${i % 2 === 0 ? 'bg-gray-50' : ''}
+                  `}
+                  onMouseEnter={() => {
+                    const newHovered = new Set(hoveredIsochrones);
+                    newHovered.add(i);
+                    setHoveredIsochrones(newHovered);
+                    
+                    // Highlight the layer
+                    if (layerRefs.current[i]) {
+                      const layer = layerRefs.current[i];
+                      layer.setStyle({
+                        weight: 5,
+                        opacity: 1,
+                        fillOpacity: 0.3,
+                        dashArray: "",
+                      });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    const newHovered = new Set(hoveredIsochrones);
+                    newHovered.delete(i);
+                    setHoveredIsochrones(newHovered);
+                    
+                    // Reset the layer style
+                    if (layerRefs.current[i]) {
+                      const layer = layerRefs.current[i];
+                      layer.setStyle({
+                        weight: 3,
+                        opacity: 0.8,
+                        fillOpacity: 0.15,
+                        dashArray: "5, 5",
+                      });
+                    }
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id={`isochrone-${i}`}
+                    checked={visibleIsochrones[i] || false}
+                    onChange={() => {
+                      setVisibleIsochrones(prev => ({
+                        ...prev,
+                        [i]: !prev[i]
+                      }));
+                    }}
+                    className="mr-2"
+                  />
+                  <label 
+                    htmlFor={`isochrone-${i}`}
+                    className="flex-1 cursor-pointer"
+                    style={{ color: getColorForIndex(i) }}
+                  >
+                    <span className="font-medium">{p.address}</span>
+                    <span className="ml-1 text-xs">({p.driveTime})</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <button 
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
+                onClick={() => {
+                  const allVisible = {};
+                  results.driveTimePolygons.forEach((_, index) => {
+                    allVisible[index] = true;
+                  });
+                  setVisibleIsochrones(allVisible);
+                }}
+              >
+                Show All
+              </button>
+              <button 
+                className="px-2 py-1 text-xs bg-gray-600 text-white rounded"
+                onClick={() => {
+                  const allHidden = {};
+                  results.driveTimePolygons.forEach((_, index) => {
+                    allHidden[index] = false;
+                  });
+                  setVisibleIsochrones(allHidden);
+                }}
+              >
+                Hide All
+              </button>
+            </div>
           </div>
           
           <div
@@ -183,22 +286,77 @@ export function PropertyResults({ results }: PropertyResultsProps) {
               {results.driveTimePolygons.length > 0 && (
                 <div>
                   {results.driveTimePolygons.map((polygon, index) => {
-                    console.log(`Rendering polygon ${index}:`, polygon);
+                    // Skip rendering if this isochrone is toggled off
+                    if (visibleIsochrones[index] === false) return null;
+                    
+                    // Determine if this polygon should be highlighted
+                    const isHighlighted = hoveredIsochrones.has(index);
+                    
                     return (
                       <GeoJSON
                         key={`polygon-${index}`}
                         data={polygon.geoJson}
                         style={() => ({
                           color: getColorForIndex(index),
-                          weight: 3,
-                          opacity: 0.9,
-                          fillOpacity: 0.2,
+                          weight: isHighlighted ? 5 : 3,
+                          opacity: isHighlighted ? 1 : 0.8,
+                          fillOpacity: isHighlighted ? 0.3 : 0.15,
+                          dashArray: isHighlighted ? "" : "5, 5",
                         })}
                         onEachFeature={(feature, layer) => {
-                          console.log(`Feature in polygon ${index}:`, feature);
+                          // Store a reference to this layer
+                          if (!layerRefs.current[index]) {
+                            layerRefs.current[index] = layer;
+                          }
+                          
+                          // Add tooltip
                           const driveTime = feature.properties?.driveTime || polygon.driveTime;
                           const address = feature.properties?.address || polygon.address;
                           layer.bindTooltip(`${address} (${driveTime})`);
+                          
+                          // Use Leaflet's built-in event handlers
+                          layer.on({
+                            // When mouse enters this polygon
+                            mouseover: (e) => {
+                              // Add this polygon to the highlighted set
+                              setHoveredIsochrones(prev => {
+                                const newSet = new Set(prev);
+                                newSet.add(index);
+                                return newSet;
+                              });
+                              
+                              // Apply highlight style
+                              layer.setStyle({
+                                weight: 5,
+                                opacity: 1,
+                                fillOpacity: 0.3,
+                                dashArray: "",
+                              });
+                              
+                              // Bring to front to ensure it's visible
+                              if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                                layer.bringToFront();
+                              }
+                            },
+                            
+                            // When mouse leaves this polygon
+                            mouseout: (e) => {
+                              // Remove this polygon from highlighted set
+                              setHoveredIsochrones(prev => {
+                                const newSet = new Set(prev);
+                                newSet.delete(index);
+                                return newSet;
+                              });
+                              
+                              // Reset style
+                              layer.setStyle({
+                                weight: 3,
+                                opacity: 0.8,
+                                fillOpacity: 0.15,
+                                dashArray: "5, 5",
+                              });
+                            }
+                          });
                         }}
                       />
                     );
@@ -208,7 +366,64 @@ export function PropertyResults({ results }: PropertyResultsProps) {
 
               {/* Property Markers */}
               {properties.map((property) => (
-                <Marker key={property.id} position={[property.lat, property.lng]}>
+                <Marker 
+                  key={property.id} 
+                  position={[property.lat, property.lng]}
+                  eventHandlers={{
+                    mouseover: () => {
+                      // Find which isochrones this property is inside of
+                      results.driveTimePolygons.forEach((polygon, index) => {
+                        if (!visibleIsochrones[index]) return; // Skip if hidden
+                        
+                        const propertyPoint = { lat: property.lat, lng: property.lng };
+                        const layer = layerRefs.current[index];
+                        
+                        if (layer && layer.getBounds().contains(propertyPoint)) {
+                          // Try to determine if the point is in this polygon
+                          try {
+                            // If this point is in this polygon, highlight it
+                            setHoveredIsochrones(prev => {
+                              const newSet = new Set(prev);
+                              newSet.add(index);
+                              return newSet;
+                            });
+                            
+                            // Style the layer
+                            layer.setStyle({
+                              weight: 5,
+                              opacity: 1,
+                              fillOpacity: 0.3,
+                              dashArray: "",
+                            });
+                            
+                            // Bring to front
+                            if (layer.bringToFront) {
+                              layer.bringToFront();
+                            }
+                          } catch (e) {
+                            console.warn(`Error checking if property is in polygon ${index}:`, e);
+                          }
+                        }
+                      });
+                    },
+                    mouseout: () => {
+                      // Reset all highlights
+                      setHoveredIsochrones(new Set());
+                      
+                      // Reset all layer styles
+                      Object.values(layerRefs.current).forEach(layer => {
+                        if (layer && layer.setStyle) {
+                          layer.setStyle({
+                            weight: 3,
+                            opacity: 0.8,
+                            fillOpacity: 0.15,
+                            dashArray: "5, 5",
+                          });
+                        }
+                      });
+                    }
+                  }}
+                >
                   <Popup>
                     <div className="w-64">
                       <div className="w-full h-32 relative">
@@ -367,6 +582,87 @@ export function PropertyResults({ results }: PropertyResultsProps) {
 }
 
 // Helper function to get different colors for drive time polygons
+// Check if a point is inside a polygon layer
+function isPointInPolygon(point, layer) {
+  if (!layer || !point) return false;
+  
+  try {
+    // Get the bounds of the layer
+    const bounds = layer.getBounds();
+    if (!bounds.contains(point)) return false;
+    
+    // Try to use Leaflet's built-in contains method if available
+    if (typeof layer.contains === 'function') {
+      return layer.contains(point);
+    }
+    
+    // For GeoJSON layers, we need to do a bit more work
+    // Convert the point to a GeoJSON feature
+    const pointFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [point.lng, point.lat]
+      }
+    };
+    
+    // Get the layer's GeoJSON
+    const layerGeoJSON = layer.toGeoJSON();
+    
+    // Use a simple ray-casting algorithm
+    // This is a simplified version and might not be perfect for all polygons
+    let inside = false;
+    
+    if (layerGeoJSON.type === 'FeatureCollection') {
+      for (const feature of layerGeoJSON.features) {
+        if (feature.geometry && feature.geometry.type === 'Polygon') {
+          inside = inside || pointInPolygon(pointFeature, feature);
+        }
+      }
+    } else if (layerGeoJSON.geometry && layerGeoJSON.geometry.type === 'Polygon') {
+      inside = pointInPolygon(pointFeature, layerGeoJSON);
+    }
+    
+    return inside;
+  } catch (e) {
+    console.warn('Error in isPointInPolygon:', e);
+    return false;
+  }
+}
+
+// Simple point-in-polygon check (ray casting algorithm)
+function pointInPolygon(point, polygon) {
+  try {
+    if (!point || !polygon || !polygon.geometry || !polygon.geometry.coordinates) {
+      return false;
+    }
+    
+    const x = point.geometry.coordinates[0];
+    const y = point.geometry.coordinates[1];
+    
+    // For each ring in the polygon
+    for (const ring of polygon.geometry.coordinates) {
+      let inside = false;
+      
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        
+        const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      
+      if (inside) return true;
+    }
+    
+    return false;
+  } catch (e) {
+    console.warn('Error in pointInPolygon:', e);
+    return false;
+  }
+}
+
 function getColorForIndex(index: number): string {
   const colors = [
     "#3388ff", // Blue
