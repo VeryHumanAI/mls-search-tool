@@ -145,6 +145,17 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       {/* Map View */}
       {activeView === "map" && (
         <div className="bg-white rounded-lg overflow-hidden shadow border">
+          {/* Debug info */}
+          <div className="p-2 bg-gray-100 text-sm">
+            <div>Properties: {properties.length}</div>
+            <div>Polygons: {results.driveTimePolygons.length}</div>
+            {results.driveTimePolygons.map((p, i) => (
+              <div key={i} className="text-xs">
+                Polygon {i}: {p.address} ({p.driveTime}) - Type: {p.geoJson?.type || "unknown"}
+              </div>
+            ))}
+          </div>
+          
           <div
             ref={mapContainerRef}
             id="map-container"
@@ -169,23 +180,31 @@ export function PropertyResults({ results }: PropertyResultsProps) {
               <ZoomControl position="bottomright" />
 
               {/* Drive Time Polygons */}
-              {results.driveTimePolygons.map((polygon, index) => (
-                <GeoJSON
-                  key={`polygon-${index}`}
-                  data={polygon.geoJson}
-                  style={() => ({
-                    color: getColorForIndex(index),
-                    weight: 2,
-                    opacity: 0.7,
-                    fillOpacity: 0.15,
+              {results.driveTimePolygons.length > 0 && (
+                <div>
+                  {results.driveTimePolygons.map((polygon, index) => {
+                    console.log(`Rendering polygon ${index}:`, polygon);
+                    return (
+                      <GeoJSON
+                        key={`polygon-${index}`}
+                        data={polygon.geoJson}
+                        style={() => ({
+                          color: getColorForIndex(index),
+                          weight: 3,
+                          opacity: 0.9,
+                          fillOpacity: 0.2,
+                        })}
+                        onEachFeature={(feature, layer) => {
+                          console.log(`Feature in polygon ${index}:`, feature);
+                          const driveTime = feature.properties?.driveTime || polygon.driveTime;
+                          const address = feature.properties?.address || polygon.address;
+                          layer.bindTooltip(`${address} (${driveTime})`);
+                        }}
+                      />
+                    );
                   })}
-                  onEachFeature={(feature, layer) => {
-                    const driveTime = feature.properties?.driveTime || polygon.driveTime;
-                    const address = feature.properties?.address || polygon.address;
-                    layer.bindTooltip(`${address} (${driveTime})`);
-                  }}
-                />
-              ))}
+                </div>
+              )}
 
               {/* Property Markers */}
               {properties.map((property) => (

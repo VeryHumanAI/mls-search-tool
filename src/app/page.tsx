@@ -22,7 +22,11 @@ export default function Home() {
           throw new Error("Failed to fetch properties");
         }
         const data = await response.json();
-        setDirectResults({ properties: data.properties, driveTimePolygons: [] });
+        console.log("API response:", data);
+        setDirectResults({ 
+          properties: data.properties || [], 
+          driveTimePolygons: data.driveTimePolygons || [] 
+        });
       } catch (error) {
         console.error("Error fetching properties:", error);
       } finally {
@@ -68,6 +72,18 @@ export default function Home() {
       console.error("Error clearing cache:", error);
     }
   };
+  
+  // Handler to debug isochrones
+  const handleDebugIsochrones = async () => {
+    try {
+      // First, clear the isochrones cache
+      await fetch("/api/clearIsochrones", { method: "GET" });
+      // Then refresh the isochrones and debug
+      window.open("/api/debugIsochrones", "_blank");
+    } catch (error) {
+      console.error("Error debugging isochrones:", error);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
@@ -87,6 +103,12 @@ export default function Home() {
               disabled={isDirectLoading}
             >
               Refresh Data
+            </button>
+            <button
+              onClick={handleDebugIsochrones}
+              className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition"
+            >
+              Debug Isochrones
             </button>
           </div>
         </div>
