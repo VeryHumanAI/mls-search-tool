@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+/* Leaflet map container styles */
+.leaflet-container {
+  width: 100%;
+  height: 600px;
+}
+
+#map-container {
+  height: 600px !important;
+  width: 100% !important;
+  z-index: 1;
+}
+
+/* Force the map container to be visible */
+.leaflet-pane {
+  z-index: 1;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 10;
+}

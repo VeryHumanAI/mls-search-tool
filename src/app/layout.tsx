@@ -17,7 +17,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link
           href="https://cdn.jsdelivr.net/npm/tailwindcss@latest/dist/tailwind.min.css"
           rel="stylesheet"
-        ></link>
+        />
+        {/* Add Leaflet CSS */}
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossOrigin=""
+        />
       </head>
       <body className={`${inter.className} min-h-screen bg-gray-50`} suppressHydrationWarning>
         <div className="mx-auto max-w-7xl">

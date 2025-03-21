@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { Property, DriveTimePolygon, SearchResults } from "@/types/property";
@@ -22,6 +22,10 @@ const GeoJSON = dynamic(() => import("react-leaflet").then((mod) => mod.GeoJSON)
   ssr: false,
 });
 
+const ZoomControl = dynamic(() => import("react-leaflet").then((mod) => mod.ZoomControl), {
+  ssr: false,
+});
+
 type PropertyResultsProps = {
   results: SearchResults;
 };
@@ -29,8 +33,8 @@ type PropertyResultsProps = {
 export function PropertyResults({ results }: PropertyResultsProps) {
   // For client-side only rendering with leaflet
   const [isMounted, setIsMounted] = useState(false);
-  const [showMap, setShowMap] = useState(false);
   const [activeView, setActiveView] = useState<"grid" | "map">("grid");
+  const mapContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -38,7 +42,7 @@ export function PropertyResults({ results }: PropertyResultsProps) {
 
   useEffect(() => {
     // Configure Leaflet icon here since it requires window
-    if (isMounted) {
+    if (isMounted && typeof window !== "undefined") {
       const L = require("leaflet");
       delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
@@ -48,6 +52,15 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       });
     }
   }, [isMounted]);
+
+  // When view changes to map, trigger a resize event to force the map to render properly
+  useEffect(() => {
+    if (activeView === "map" && typeof window !== "undefined") {
+      setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 100);
+    }
+  }, [activeView]);
 
   // Mock properties data if no results are provided
   const mockProperties: Property[] = [
@@ -85,7 +98,7 @@ export function PropertyResults({ results }: PropertyResultsProps) {
   const center =
     properties.length > 0
       ? { lat: properties[0].lat, lng: properties[0].lng }
-      : { lat: 37.7749, lng: -122.4194 }; // Default to San Francisco if no properties
+      : { lat: 35.0456, lng: -85.3097 }; // Default to Chattanooga if no properties
 
   if (!isMounted) {
     return <div className="mt-4 p-4 bg-gray-100 rounded-md">Loading results...</div>;
@@ -120,17 +133,28 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       {/* Map View */}
       {activeView === "map" && (
         <div className="bg-white rounded-lg overflow-hidden shadow border">
-          <div className="h-[600px] w-full relative">
+          <div
+            ref={mapContainerRef}
+            id="map-container"
+            className="h-[600px] w-full"
+            style={{ height: "600px", width: "100%" }}
+          >
             <MapContainer
               center={[center.lat, center.lng]}
               zoom={12}
               style={{ height: "100%", width: "100%" }}
-              scrollWheelZoom={false} // Disable scroll wheel zoom to prevent accidental zooming
+              scrollWheelZoom={true}
+              preferCanvas={true}
+              attributionControl={true}
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                maxZoom={19}
+                detectRetina={true}
               />
+
+              <ZoomControl position="bottomright" />
 
               {/* Drive Time Polygons */}
               {results.driveTimePolygons.map((polygon, index) => (
