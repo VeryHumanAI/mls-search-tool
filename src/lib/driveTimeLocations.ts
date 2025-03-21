@@ -12,18 +12,36 @@ const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 // Hardcoded locations with drive times
 export const DRIVE_TIME_LOCATIONS = [
   // 10 minutes
-  { address: "3727 Forest Highland Circle, Chattanooga, TN 37415", driveTime: "10 minutes" },
-  { address: "Society of Work - Northshore, 110 Somerville Avenue, Chattanooga, TN 37405", driveTime: "10 minutes" },
-  
+  { address: "3727 Forest Highland Circle, Chattanooga, TN 37415", driveTime: "15 minutes" },
+  {
+    address: "Society of Work - Northshore, 110 Somerville Avenue, Chattanooga, TN 37405",
+    driveTime: "15 minutes",
+  },
+
   // 15 minutes
-  { address: "Greenway Farms Dog Park, Walker Cemetery, Chattanooga, TN 37344", driveTime: "15 minutes" },
-  { address: "McKamey Animal Center, 4500 N Access Rd, Chattanooga, TN 37415", driveTime: "15 minutes" },
-  { address: "Miller's Ale House, 2119 Gunbarrel Road, Chattanooga, TN 37421", driveTime: "15 minutes" },
-  { address: "Liberty Tower, 605 Chestnut Street, Chattanooga, TN 37450", driveTime: "15 minutes" },
-  
+  {
+    address: "Greenway Farms Dog Park, Walker Cemetery, Chattanooga, TN 37344",
+    driveTime: "20 minutes",
+  },
+  {
+    address: "McKamey Animal Center, 4500 N Access Rd, Chattanooga, TN 37415",
+    driveTime: "20 minutes",
+  },
+  {
+    address: "Miller's Ale House, 2119 Gunbarrel Road, Chattanooga, TN 37421",
+    driveTime: "20 minutes",
+  },
+  { address: "Liberty Tower, 605 Chestnut Street, Chattanooga, TN 37450", driveTime: "20 minutes" },
+
   // 20 minutes
-  { address: "Brainerd Baptist School, 4107 Mayfair Ave, Chattanooga, TN 37411", driveTime: "20 minutes" },
-  { address: "Chattanooga Christian School, 3354 Charger Drive, Chattanooga, TN 37409", driveTime: "20 minutes" },
+  {
+    address: "Brainerd Baptist School, 4107 Mayfair Ave, Chattanooga, TN 37411",
+    driveTime: "30 minutes",
+  },
+  {
+    address: "Chattanooga Christian School, 3354 Charger Drive, Chattanooga, TN 37409",
+    driveTime: "30 minutes",
+  },
 ];
 
 // Ensure cache directory exists
@@ -99,17 +117,19 @@ export async function fetchDriveTimePolygons(forceRefresh = false): Promise<Driv
     for (const location of DRIVE_TIME_LOCATIONS) {
       const { address, driveTime } = location;
       const timeMinutes = parseDriveTime(driveTime);
-      
+
       // Geocode the address to get coordinates
       console.log(`Geocoding address: ${address}`);
       const geocoded = await geocodeAddress(address);
-      
+
       // Get the isochrone (drive time polygon)
-      console.log(`Getting ${timeMinutes} minute drive time polygon for ${address} at coordinates ${geocoded.lat}, ${geocoded.lon}`);
+      console.log(
+        `Getting ${timeMinutes} minute drive time polygon for ${address} at coordinates ${geocoded.lat}, ${geocoded.lon}`
+      );
       const isochroneData = await getDriveTimeIsochrone(geocoded.lat, geocoded.lon, timeMinutes);
-      
+
       console.log(`Received isochrone data type: ${isochroneData.type}`);
-      
+
       // Add to polygons array
       polygons.push({
         address,
@@ -120,7 +140,7 @@ export async function fetchDriveTimePolygons(forceRefresh = false): Promise<Driv
 
     // Cache the polygons
     cacheIsochrones(polygons);
-    
+
     return polygons;
   } catch (error) {
     console.error("Error fetching drive time polygons:", error);
@@ -137,15 +157,17 @@ export function createCombinedPolygon(polygons: DriveTimePolygon[]): any {
 
     // Debug info about polygons
     polygons.forEach((polygon, index) => {
-      console.log(`Polygon ${index} (${polygon.address}): Type=${polygon.geoJson?.type}, HasFeatures=${polygon.geoJson?.features?.length > 0}`);
+      console.log(
+        `Polygon ${index} (${polygon.address}): Type=${polygon.geoJson?.type}, HasFeatures=${polygon.geoJson?.features?.length > 0}`
+      );
     });
 
     // Instead of trying to union, let's just create a FeatureCollection
     // with all the individual polygons for visualization
     const allFeatures = [];
-    
+
     for (const polygon of polygons) {
-      if (polygon.geoJson?.type === 'FeatureCollection' && polygon.geoJson.features?.length > 0) {
+      if (polygon.geoJson?.type === "FeatureCollection" && polygon.geoJson.features?.length > 0) {
         // Add all features from the FeatureCollection
         for (const feature of polygon.geoJson.features) {
           if (feature && feature.geometry) {
@@ -156,7 +178,7 @@ export function createCombinedPolygon(polygons: DriveTimePolygon[]): any {
             allFeatures.push(feature);
           }
         }
-      } else if (polygon.geoJson?.type === 'Feature' && polygon.geoJson.geometry) {
+      } else if (polygon.geoJson?.type === "Feature" && polygon.geoJson.geometry) {
         // Add the feature directly
         const feature = polygon.geoJson;
         if (!feature.properties) feature.properties = {};
@@ -170,8 +192,8 @@ export function createCombinedPolygon(polygons: DriveTimePolygon[]): any {
 
     // Return a FeatureCollection with all the polygons
     return {
-      type: 'FeatureCollection',
-      features: allFeatures
+      type: "FeatureCollection",
+      features: allFeatures,
     };
   } catch (error) {
     console.error("Error creating combined polygon:", error);
@@ -181,8 +203,8 @@ export function createCombinedPolygon(polygons: DriveTimePolygon[]): any {
 
 // Check if a point (property location) is inside ALL of the specified drive time polygons
 export function isPointInPolygons(
-  lat: number, 
-  lng: number, 
+  lat: number,
+  lng: number,
   polygons: DriveTimePolygon[],
   enabledPolygonIndices?: number[]
 ): boolean {
@@ -191,10 +213,10 @@ export function isPointInPolygons(
   }
 
   // Filter to only enabled polygons if specified
-  const polygonsToCheck = enabledPolygonIndices 
+  const polygonsToCheck = enabledPolygonIndices
     ? polygons.filter((_, index) => enabledPolygonIndices.includes(index))
     : polygons;
-  
+
   // If no polygons are enabled to check, return true (no filtering)
   if (polygonsToCheck.length === 0) {
     return true;
@@ -218,7 +240,7 @@ export function isPointInPolygons(
       }
 
       // Case: FeatureCollection
-      if (geoJson.type === 'FeatureCollection' && geoJson.features) {
+      if (geoJson.type === "FeatureCollection" && geoJson.features) {
         for (const feature of geoJson.features) {
           try {
             if (turf.booleanPointInPolygon(point, feature)) {
@@ -229,9 +251,9 @@ export function isPointInPolygons(
             console.warn(`Error checking point in polygon feature: ${e}`);
           }
         }
-      } 
+      }
       // Case: Direct Feature
-      else if (geoJson.type === 'Feature' && geoJson.geometry) {
+      else if (geoJson.type === "Feature" && geoJson.geometry) {
         try {
           if (turf.booleanPointInPolygon(point, geoJson)) {
             isInsideCurrentPolygon = true;
@@ -241,7 +263,7 @@ export function isPointInPolygons(
         }
       }
       // Case: Direct Geometry (like Polygon)
-      else if (geoJson.type === 'Polygon' || geoJson.type === 'MultiPolygon') {
+      else if (geoJson.type === "Polygon" || geoJson.type === "MultiPolygon") {
         try {
           // Convert to a feature
           const feature = turf.feature(geoJson);
@@ -254,13 +276,13 @@ export function isPointInPolygons(
       } else {
         console.warn(`Unhandled geoJson type: ${geoJson.type}`);
       }
-      
+
       // For ALL approach, if the point is not inside this polygon, return false immediately
       if (!isInsideCurrentPolygon) {
         return false;
       }
     }
-    
+
     // If we've checked all polygons and haven't returned false, the point is inside ALL polygons
     return true;
   } catch (error) {
