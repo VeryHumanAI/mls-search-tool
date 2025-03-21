@@ -1,0 +1,36 @@
+{
+  "name": "mls-search-tool",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hookform/resolvers": "^4.1.3",
+    "@turf/turf": "^7.2.0",
+    "@types/leaflet": "^1.9.16",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.4.21",
+    "axios": "^1.8.4",
+    "eslint": "^9.22.0",
+    "leaflet": "^1.9.4",
+    "next": "^15.2.3",
+    "postcss": "^8.5.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.54.2",
+    "react-leaflet": "^5.0.0",
+    "tailwindcss": "^4.0.15",
+    "typescript": "^5.8.2",
+    "yup": "^1.6.1"
+  }
+}
