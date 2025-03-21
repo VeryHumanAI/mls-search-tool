@@ -11,13 +11,14 @@ export default function Home() {
   const [directResults, setDirectResults] = useState(null);
   const [isDirectLoading, setIsDirectLoading] = useState(false);
   const [showSearchForm, setShowSearchForm] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Fetch properties directly when the page loads
+  // Fetch properties directly when the page loads or when page changes
   useEffect(() => {
     async function fetchDirectProperties() {
       setIsDirectLoading(true);
       try {
-        const response = await fetch("/api/search");
+        const response = await fetch(`/api/search?page=${currentPage}`);
         if (!response.ok) {
           throw new Error("Failed to fetch properties");
         }
@@ -25,7 +26,8 @@ export default function Home() {
         console.log("API response:", data);
         setDirectResults({ 
           properties: data.properties || [], 
-          driveTimePolygons: data.driveTimePolygons || [] 
+          driveTimePolygons: data.driveTimePolygons || [],
+          pagination: data.pagination || { currentPage: 1, totalPages: 1, totalCount: 0 }
         });
       } catch (error) {
         console.error("Error fetching properties:", error);
@@ -35,13 +37,13 @@ export default function Home() {
     }
 
     fetchDirectProperties();
-  }, []);
+  }, [currentPage]);
 
   // Handle search form submission
-  async function handleSearch(formData) {
+  async function handleSearch(formData, page = 1) {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/search", {
+      const response = await fetch(`/api/search?page=${page}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -54,13 +56,29 @@ export default function Home() {
       }
 
       const data = await response.json();
+      // Store the form data for pagination
+      data.formData = formData;
+      
       setSearchResults(data);
+      setCurrentPage(page); // Update current page
     } catch (error) {
       console.error("Error submitting search:", error);
       alert("Error submitting search. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  }
+  
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    
+    // If we have search results, we need to rerun the search with the new page
+    if (searchResults) {
+      // Re-run the search with the same form data but different page
+      handleSearch(searchResults.formData, newPage);
+    }
+    // Otherwise the useEffect will handle fetching the new page for direct results
   }
 
   // Handler to refresh properties
@@ -129,7 +147,14 @@ export default function Home() {
         {searchResults && !isLoading && (
           <div className="mb-12">
             <h3 className="text-xl font-semibold mb-4">Search Results</h3>
-            <PropertyResults results={searchResults} />
+            <PropertyResults 
+              results={searchResults} 
+              onPageChange={(page) => {
+                if (searchResults.formData) {
+                  handleSearch(searchResults.formData, page);
+                }
+              }}
+            />
           </div>
         )}
 
@@ -140,7 +165,10 @@ export default function Home() {
               <LoadingSpinner />
             </div>
           ) : directResults?.properties?.length > 0 ? (
-            <PropertyResults results={directResults} />
+            <PropertyResults 
+              results={directResults} 
+              onPageChange={handlePageChange}
+            />
           ) : (
             <div className="p-8 text-center bg-gray-50 rounded-lg">
               <p className="text-gray-600">

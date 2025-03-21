@@ -76,11 +76,11 @@ export function calculateMaxHomePrice(
 }
 
 // Fetch properties from RapidAPI
-export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
+export async function fetchPropertiesFromRapidApi(page = 1, limit = 200): Promise<{properties: Property[], totalCount: number, totalPages: number}> {
   // Try to get properties from cache first
-  const cachedProperties = getCachedProperties();
-  if (cachedProperties) {
-    return cachedProperties;
+  const cachedData = getCachedProperties(page);
+  if (cachedData) {
+    return cachedData;
   }
 
   const RAPIDAPI_KEY = serverRuntimeConfig.NEXT_RAPIDAPI_KEY;
@@ -88,8 +88,11 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
 
   if (!RAPIDAPI_KEY || !RAPIDAPI_HOST) {
     console.error("RapidAPI credentials are missing");
-    return [];
+    return { properties: [], totalCount: 0, totalPages: 0 };
   }
+
+  // Calculate offset based on page and limit
+  const offset = (page - 1) * limit;
 
   const options = {
     method: "GET",
@@ -97,10 +100,12 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
     params: {
       location: "hamilton county, tn",
       type: "single_family,duplex_triplex,multi_family",
-      limit: "200",
+      limit: limit.toString(),
+      offset: offset.toString(),
       search_radius: "25",
       foreclosure: "false",
       "list_price-max": "500000",
+      sort: "relevant",
     },
     headers: {
       "x-rapidapi-key": RAPIDAPI_KEY,
@@ -109,7 +114,7 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
   };
 
   try {
-    console.log("Fetching properties from RapidAPI...");
+    console.log(`Fetching properties from RapidAPI (page ${page}, limit ${limit})...`);
     const response = await axios.request(options);
 
     // Check if response data needs to be parsed
@@ -117,8 +122,12 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
 
     if (!data.properties || !Array.isArray(data.properties)) {
       console.error("Invalid response format from RapidAPI:", data);
-      return [];
+      return { properties: [], totalCount: 0, totalPages: 0 };
     }
+
+    // Get the total count of properties if available
+    const totalCount = data.matching_rows || data.total || data.properties.length;
+    const totalPages = Math.ceil(totalCount / limit);
 
     // Transform the API response into our Property type
     const properties = data.properties.map((property: any) => {
@@ -144,23 +153,27 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
       };
     });
 
-    // Cache the fetched properties
-    cacheProperties(properties);
+    // Cache the fetched properties with pagination info
+    const result = { properties, totalCount, totalPages };
+    cacheProperties(result, page);
 
-    return properties;
+    return result;
   } catch (error) {
-    console.error("Error fetching properties from RapidAPI:", error);
-    return [];
+    console.error(`Error fetching properties from RapidAPI (page ${page}):`, error);
+    return { properties: [], totalCount: 0, totalPages: 0 };
   }
 }
 
-// Search for properties
-export async function searchProperties(params: PropertySearchParams): Promise<{properties: Property[], driveTimePolygons: DriveTimePolygon[]}> {
+// Search for properties with pagination
+export async function searchProperties(
+  params: PropertySearchParams, 
+  page = 1
+): Promise<{properties: Property[], driveTimePolygons: DriveTimePolygon[], pagination: {currentPage: number, totalPages: number, totalCount: number}}> {
   try {
     // Calculate maximum home price based on monthly payment and down payment
     const maxPrice = calculateMaxHomePrice(params.maxMonthlyPayment, params.downPaymentPercent);
 
-    console.log("Searching properties with max price:", maxPrice);
+    console.log(`Searching properties with max price: ${maxPrice}, page: ${page}`);
 
     // Fetch drive time polygons
     const driveTimePolygons = await fetchDriveTimePolygons();
@@ -174,8 +187,9 @@ export async function searchProperties(params: PropertySearchParams): Promise<{p
       // Continue without the combined polygon
     }
 
-    // Fetch properties from RapidAPI
-    const properties = await fetchPropertiesFromRapidApi();
+    // Fetch properties from RapidAPI with pagination
+    const propertiesData = await fetchPropertiesFromRapidApi(page);
+    const { properties, totalCount, totalPages } = propertiesData;
 
     // Filter properties based on price, location (in polygons), and calculate monthly payment
     const filteredProperties = properties
@@ -213,14 +227,19 @@ export async function searchProperties(params: PropertySearchParams): Promise<{p
       result = result.filter(property => property.squareFeet >= params.minSquareFeet!);
     }
 
-    console.log(`Found ${result.length} properties after filtering`);
+    console.log(`Found ${result.length} properties on page ${page} after filtering (Total: ${totalCount})`);
 
     return {
       properties: result,
-      driveTimePolygons
+      driveTimePolygons,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalCount
+      }
     };
   } catch (error) {
-    console.error("Error searching properties:", error);
+    console.error(`Error searching properties on page ${page}:`, error);
     throw error;
   }
 }

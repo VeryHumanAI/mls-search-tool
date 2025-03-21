@@ -37,4 +37,10 @@ export interface DriveTimePolygon {
 export interface SearchResults {
   properties: Property[];
   driveTimePolygons: DriveTimePolygon[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+  };
+  formData?: any; // Store form data for pagination
 }

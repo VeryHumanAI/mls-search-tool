@@ -25,6 +25,10 @@ type SearchResponse = {
 export async function POST(request: Request) {
   try {
     const data: SearchRequest = await request.json();
+    
+    // Get page from query params
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
 
     // 1. Use custom locations if provided, otherwise use hardcoded ones
     let driveTimePolygons: DriveTimePolygon[] = [];
@@ -52,12 +56,12 @@ export async function POST(request: Request) {
       }));
     }
 
-    // 3. Search for properties within the combined area and budget
+    // 3. Search for properties within the combined area and budget with pagination
     const searchResults = await searchProperties({
       polygon: null, // Unused now, we filter by polygons inside searchProperties
       maxMonthlyPayment: data.budget.maxPerMonth,
       downPaymentPercent: data.budget.downPaymentPercent,
-    });
+    }, page);
 
     // 4. Return the results
     return NextResponse.json(searchResults);
@@ -67,15 +71,19 @@ export async function POST(request: Request) {
   }
 }
 
-// New API endpoint for just fetching properties directly
-export async function GET() {
+// New API endpoint for just fetching properties directly with pagination
+export async function GET(request: Request) {
   try {
+    // Get page from query params
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    
     // Search for properties with default parameters
     const searchResults = await searchProperties({
       polygon: null, // No geographic constraints
       maxMonthlyPayment: 3000, // Default maximum monthly payment
       downPaymentPercent: 20, // Default down payment percentage
-    });
+    }, page);
 
     return NextResponse.json(searchResults);
   } catch (error) {

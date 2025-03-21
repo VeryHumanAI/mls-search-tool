@@ -4,7 +4,7 @@ import { Property } from "@/types/property";
 
 // Cache configuration
 const CACHE_DIR = path.join(process.cwd(), ".cache");
-const PROPERTIES_CACHE_FILE = path.join(CACHE_DIR, "properties.json");
+const PROPERTIES_CACHE_PREFIX = path.join(CACHE_DIR, "properties_page_");
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
 // Ensure cache directory exists
@@ -20,55 +20,73 @@ interface CacheData<T> {
   data: T;
 }
 
-// Get cached properties
-export function getCachedProperties(): Property[] | null {
+// Get cached properties with pagination
+export function getCachedProperties(page = 1): {properties: Property[], totalCount: number, totalPages: number} | null {
   try {
-    if (!fs.existsSync(PROPERTIES_CACHE_FILE)) {
+    const cacheFile = `${PROPERTIES_CACHE_PREFIX}${page}.json`;
+    
+    if (!fs.existsSync(cacheFile)) {
       return null;
     }
 
-    const cacheContent = fs.readFileSync(PROPERTIES_CACHE_FILE, "utf-8");
-    const cacheData: CacheData<Property[]> = JSON.parse(cacheContent);
+    const cacheContent = fs.readFileSync(cacheFile, "utf-8");
+    const cacheData: CacheData<{properties: Property[], totalCount: number, totalPages: number}> = JSON.parse(cacheContent);
 
     // Check if cache is expired
     const now = Date.now();
     if (now - cacheData.timestamp > CACHE_TTL) {
-      console.log("Cache expired, will fetch fresh data");
+      console.log(`Cache for page ${page} expired, will fetch fresh data`);
       return null;
     }
 
-    console.log("Using cached properties");
+    console.log(`Using cached properties for page ${page}`);
     return cacheData.data;
   } catch (error) {
-    console.error("Error reading properties cache:", error);
+    console.error(`Error reading properties cache for page ${page}:`, error);
     return null;
   }
 }
 
-// Save properties to cache
-export function cacheProperties(properties: Property[]): void {
+// Save properties to cache with pagination
+export function cacheProperties(
+  data: {properties: Property[], totalCount: number, totalPages: number}, 
+  page = 1
+): void {
   try {
     ensureCacheDir();
+    const cacheFile = `${PROPERTIES_CACHE_PREFIX}${page}.json`;
 
-    const cacheData: CacheData<Property[]> = {
+    const cacheData: CacheData<{properties: Property[], totalCount: number, totalPages: number}> = {
       timestamp: Date.now(),
-      data: properties,
+      data,
     };
 
-    fs.writeFileSync(PROPERTIES_CACHE_FILE, JSON.stringify(cacheData, null, 2));
-    console.log("Properties cached successfully");
+    fs.writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2));
+    console.log(`Properties for page ${page} cached successfully`);
   } catch (error) {
-    console.error("Error caching properties:", error);
+    console.error(`Error caching properties for page ${page}:`, error);
   }
 }
 
 // Clear the cache
 export function clearCache(): void {
   try {
-    if (fs.existsSync(PROPERTIES_CACHE_FILE)) {
-      fs.unlinkSync(PROPERTIES_CACHE_FILE);
-      console.log("Cache cleared");
+    // Read all files in cache directory
+    const files = fs.readdirSync(CACHE_DIR);
+    
+    // Filter for property cache files
+    const propertyCacheFiles = files.filter(file => 
+      file.startsWith('properties_page_') && file.endsWith('.json')
+    );
+    
+    // Delete each property cache file
+    let count = 0;
+    for (const file of propertyCacheFiles) {
+      fs.unlinkSync(path.join(CACHE_DIR, file));
+      count++;
     }
+    
+    console.log(`Cache cleared (${count} property cache files deleted)`);
   } catch (error) {
     console.error("Error clearing cache:", error);
   }

@@ -28,9 +28,10 @@ const ZoomControl = dynamic(() => import("react-leaflet").then((mod) => mod.Zoom
 
 type PropertyResultsProps = {
   results: SearchResults;
+  onPageChange?: (page: number) => void;
 };
 
-export function PropertyResults({ results }: PropertyResultsProps) {
+export function PropertyResults({ results, onPageChange }: PropertyResultsProps) {
   // For client-side only rendering with leaflet
   const [isMounted, setIsMounted] = useState(false);
   const [activeView, setActiveView] = useState<"grid" | "map">("grid");
@@ -541,40 +542,74 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       )}
 
       {/* Pagination */}
-      {properties.length > 0 && (
+      {properties.length > 0 && results.pagination && results.pagination.totalPages > 1 && (
         <div className="flex justify-center mt-8">
           <nav className="inline-flex rounded-md shadow">
-            <a
-              href="#"
-              className="py-2 px-4 border border-gray-300 bg-white rounded-l-md hover:bg-gray-50"
+            {/* Previous Button */}
+            <button
+              onClick={() => onPageChange && onPageChange(Math.max(1, results.pagination.currentPage - 1))}
+              disabled={results.pagination.currentPage <= 1}
+              className={`py-2 px-4 border border-gray-300 rounded-l-md ${
+                results.pagination.currentPage <= 1 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                  : 'bg-white hover:bg-gray-50 cursor-pointer'
+              }`}
             >
               Previous
-            </a>
-            <a
-              href="#"
-              className="py-2 px-4 border-t border-b border-gray-300 bg-white hover:bg-gray-50"
-            >
-              1
-            </a>
-            <a
-              href="#"
-              className="py-2 px-4 border-t border-b border-gray-300 bg-blue-50 text-blue-600 font-medium"
-            >
-              2
-            </a>
-            <a
-              href="#"
-              className="py-2 px-4 border-t border-b border-gray-300 bg-white hover:bg-gray-50"
-            >
-              3
-            </a>
-            <a
-              href="#"
-              className="py-2 px-4 border border-gray-300 bg-white rounded-r-md hover:bg-gray-50"
+            </button>
+            
+            {/* Page Numbers */}
+            {Array.from({ length: Math.min(5, results.pagination.totalPages) }).map((_, i) => {
+              // Logic to show pages around current page
+              const totalPages = results.pagination.totalPages;
+              const currentPage = results.pagination.currentPage;
+              
+              let pageNum;
+              if (totalPages <= 5) {
+                // If 5 or fewer pages, show all pages
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                // If near the start, show first 5 pages
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                // If near the end, show last 5 pages
+                pageNum = totalPages - 4 + i;
+              } else {
+                // Otherwise show 2 before and 2 after current page
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => onPageChange && onPageChange(pageNum)}
+                  className={`py-2 px-4 border-t border-b border-gray-300 ${
+                    pageNum === results.pagination.currentPage
+                      ? 'bg-blue-50 text-blue-600 font-medium'
+                      : 'bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            
+            {/* Next Button */}
+            <button
+              onClick={() => onPageChange && onPageChange(Math.min(results.pagination.totalPages, results.pagination.currentPage + 1))}
+              disabled={results.pagination.currentPage >= results.pagination.totalPages}
+              className={`py-2 px-4 border border-gray-300 rounded-r-md ${
+                results.pagination.currentPage >= results.pagination.totalPages
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-white hover:bg-gray-50 cursor-pointer'
+              }`}
             >
               Next
-            </a>
+            </button>
           </nav>
+          <div className="ml-4 text-sm text-gray-600 self-center">
+            {results.pagination.totalCount.toLocaleString()} properties found
+          </div>
         </div>
       )}
     </div>
