@@ -29,9 +29,10 @@ const ZoomControl = dynamic(() => import("react-leaflet").then((mod) => mod.Zoom
 type PropertyResultsProps = {
   results: SearchResults;
   onPageChange?: (page: number) => void;
+  onFilterChange?: (enabledPolygonIndices: number[]) => void;
 };
 
-export function PropertyResults({ results, onPageChange }: PropertyResultsProps) {
+export function PropertyResults({ results, onPageChange, onFilterChange }: PropertyResultsProps) {
   // For client-side only rendering with leaflet
   const [isMounted, setIsMounted] = useState(false);
   const [activeView, setActiveView] = useState<"grid" | "map">("grid");
@@ -41,6 +42,9 @@ export function PropertyResults({ results, onPageChange }: PropertyResultsProps)
   const [visibleIsochrones, setVisibleIsochrones] = useState<{[key: number]: boolean}>({});
   const [hoveredIsochrones, setHoveredIsochrones] = useState<Set<number>>(new Set());
   
+  // Track which isochrones are used for filtering properties
+  const [filterIsochrones, setFilterIsochrones] = useState<{[key: number]: boolean}>({});
+  
   // Keep references to the GeoJSON layers
   const layerRefs = useRef<{[key: number]: any}>({});
 
@@ -49,13 +53,17 @@ export function PropertyResults({ results, onPageChange }: PropertyResultsProps)
   }, []);
 
   // Initialize visibility state for all isochrones to true (all visible)
+  // and initialize filter state (all used for filtering)
   useEffect(() => {
     if (results.driveTimePolygons.length > 0) {
       const initialVisibility = {};
+      const initialFilter = {};
       results.driveTimePolygons.forEach((_, index) => {
         initialVisibility[index] = true;
+        initialFilter[index] = true; // Initially use all for filtering
       });
       setVisibleIsochrones(initialVisibility);
+      setFilterIsochrones(initialFilter);
     }
   }, [results.driveTimePolygons]);
 
@@ -167,96 +175,181 @@ export function PropertyResults({ results, onPageChange }: PropertyResultsProps)
           {/* Isochrone Controls */}
           <div className="p-3 bg-gray-100 text-sm border-b">
             <h4 className="font-semibold mb-2">Drive Time Areas</h4>
-            <div className="grid grid-cols-1 gap-1">
-              {results.driveTimePolygons.map((p, i) => (
-                <div 
-                  key={i} 
-                  className={`
-                    flex items-center p-1.5 text-sm rounded cursor-pointer
-                    ${hoveredIsochrones.has(i) ? 'bg-blue-100' : ''}
-                    ${getDriveTimeBackground(p.driveTime)}
-                  `}
-                  onMouseEnter={() => {
-                    const newHovered = new Set(hoveredIsochrones);
-                    newHovered.add(i);
-                    setHoveredIsochrones(newHovered);
-                    
-                    // Highlight the layer
-                    if (layerRefs.current[i]) {
-                      const layer = layerRefs.current[i];
-                      layer.setStyle({
-                        weight: 5,
-                        opacity: 1,
-                        fillOpacity: 0.3,
-                        dashArray: "",
-                      });
-                    }
+            
+            {/* Visibility Options */}
+            <div className="mb-3">
+              <h5 className="font-medium text-xs uppercase text-gray-500 mb-1">Visibility</h5>
+              <div className="grid grid-cols-1 gap-1">
+                {results.driveTimePolygons.map((p, i) => (
+                  <div 
+                    key={i} 
+                    className={`
+                      flex items-center p-1.5 text-sm rounded cursor-pointer
+                      ${hoveredIsochrones.has(i) ? 'bg-blue-100' : ''}
+                      ${getDriveTimeBackground(p.driveTime)}
+                    `}
+                    onMouseEnter={() => {
+                      const newHovered = new Set(hoveredIsochrones);
+                      newHovered.add(i);
+                      setHoveredIsochrones(newHovered);
+                      
+                      // Highlight the layer
+                      if (layerRefs.current[i]) {
+                        const layer = layerRefs.current[i];
+                        layer.setStyle({
+                          weight: 5,
+                          opacity: 1,
+                          fillOpacity: 0.3,
+                          dashArray: "",
+                        });
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      const newHovered = new Set(hoveredIsochrones);
+                      newHovered.delete(i);
+                      setHoveredIsochrones(newHovered);
+                      
+                      // Reset the layer style
+                      if (layerRefs.current[i]) {
+                        const layer = layerRefs.current[i];
+                        layer.setStyle({
+                          weight: 3,
+                          opacity: 0.8,
+                          fillOpacity: 0.15,
+                          dashArray: "5, 5",
+                        });
+                      }
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      id={`isochrone-${i}`}
+                      checked={visibleIsochrones[i] || false}
+                      onChange={() => {
+                        setVisibleIsochrones(prev => ({
+                          ...prev,
+                          [i]: !prev[i]
+                        }));
+                      }}
+                      className="mr-2"
+                    />
+                    <label 
+                      htmlFor={`isochrone-${i}`}
+                      className="flex-1 cursor-pointer"
+                      style={{ color: getColorForIndex(i) }}
+                    >
+                      <span className="font-medium">{p.address}</span>
+                      <span className="ml-1 text-xs">({p.driveTime})</span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button 
+                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
+                  onClick={() => {
+                    const allVisible = {};
+                    results.driveTimePolygons.forEach((_, index) => {
+                      allVisible[index] = true;
+                    });
+                    setVisibleIsochrones(allVisible);
                   }}
-                  onMouseLeave={() => {
-                    const newHovered = new Set(hoveredIsochrones);
-                    newHovered.delete(i);
-                    setHoveredIsochrones(newHovered);
+                >
+                  Show All
+                </button>
+                <button 
+                  className="px-2 py-1 text-xs bg-gray-600 text-white rounded"
+                  onClick={() => {
+                    const allHidden = {};
+                    results.driveTimePolygons.forEach((_, index) => {
+                      allHidden[index] = false;
+                    });
+                    setVisibleIsochrones(allHidden);
+                  }}
+                >
+                  Hide All
+                </button>
+              </div>
+            </div>
+            
+            {/* Filtering Options */}
+            <div className="border-t pt-3 mt-3">
+              <h5 className="font-medium text-xs uppercase text-gray-500 mb-1">Filter Properties By</h5>
+              <p className="text-xs mb-2 text-gray-600">Properties must be within ALL selected areas:</p>
+              <div className="grid grid-cols-1 gap-1">
+                {results.driveTimePolygons.map((p, i) => (
+                  <div 
+                    key={`filter-${i}`} 
+                    className={`
+                      flex items-center p-1.5 text-sm rounded cursor-pointer 
+                      ${getDriveTimeBackground(p.driveTime)}
+                    `}
+                  >
+                    <input
+                      type="checkbox"
+                      id={`filter-isochrone-${i}`}
+                      checked={filterIsochrones[i] || false}
+                      onChange={() => {
+                        setFilterIsochrones(prev => ({
+                          ...prev,
+                          [i]: !prev[i]
+                        }));
+                      }}
+                      className="mr-2"
+                    />
+                    <label 
+                      htmlFor={`filter-isochrone-${i}`}
+                      className="flex-1 cursor-pointer"
+                      style={{ color: getColorForIndex(i) }}
+                    >
+                      <span className="font-medium">{p.address}</span>
+                      <span className="ml-1 text-xs">({p.driveTime})</span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button 
+                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
+                  onClick={() => {
+                    // Convert the filterIsochrones object to an array of indices
+                    const enabledIndices = Object.entries(filterIsochrones)
+                      .filter(([_, enabled]) => enabled)
+                      .map(([index]) => parseInt(index));
                     
-                    // Reset the layer style
-                    if (layerRefs.current[i]) {
-                      const layer = layerRefs.current[i];
-                      layer.setStyle({
-                        weight: 3,
-                        opacity: 0.8,
-                        fillOpacity: 0.15,
-                        dashArray: "5, 5",
-                      });
+                    // Call the onFilterChange prop to update the parent component
+                    if (onFilterChange) {
+                      onFilterChange(enabledIndices);
                     }
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    id={`isochrone-${i}`}
-                    checked={visibleIsochrones[i] || false}
-                    onChange={() => {
-                      setVisibleIsochrones(prev => ({
-                        ...prev,
-                        [i]: !prev[i]
-                      }));
-                    }}
-                    className="mr-2"
-                  />
-                  <label 
-                    htmlFor={`isochrone-${i}`}
-                    className="flex-1 cursor-pointer"
-                    style={{ color: getColorForIndex(i) }}
-                  >
-                    <span className="font-medium">{p.address}</span>
-                    <span className="ml-1 text-xs">({p.driveTime})</span>
-                  </label>
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 flex gap-2">
-              <button 
-                className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
-                onClick={() => {
-                  const allVisible = {};
-                  results.driveTimePolygons.forEach((_, index) => {
-                    allVisible[index] = true;
-                  });
-                  setVisibleIsochrones(allVisible);
-                }}
-              >
-                Show All
-              </button>
-              <button 
-                className="px-2 py-1 text-xs bg-gray-600 text-white rounded"
-                onClick={() => {
-                  const allHidden = {};
-                  results.driveTimePolygons.forEach((_, index) => {
-                    allHidden[index] = false;
-                  });
-                  setVisibleIsochrones(allHidden);
-                }}
-              >
-                Hide All
-              </button>
+                  Apply Filters
+                </button>
+                <button 
+                  className="px-2 py-1 text-xs bg-gray-600 text-white rounded"
+                  onClick={() => {
+                    const allSelected = {};
+                    results.driveTimePolygons.forEach((_, index) => {
+                      allSelected[index] = true;
+                    });
+                    setFilterIsochrones(allSelected);
+                  }}
+                >
+                  Select All Areas
+                </button>
+                <button 
+                  className="px-2 py-1 text-xs bg-gray-400 text-white rounded"
+                  onClick={() => {
+                    const noneSelected = {};
+                    results.driveTimePolygons.forEach((_, index) => {
+                      noneSelected[index] = false;
+                    });
+                    setFilterIsochrones(noneSelected);
+                  }}
+                >
+                  Clear Areas
+                </button>
+              </div>
             </div>
           </div>
           

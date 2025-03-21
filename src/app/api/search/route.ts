@@ -15,6 +15,7 @@ type SearchRequest = {
     maxPerMonth: number;
     downPaymentPercent: number;
   };
+  enabledPolygonIndices?: number[]; // Indices of drive time polygons that should be used for filtering
 };
 
 type SearchResponse = {
@@ -26,9 +27,12 @@ export async function POST(request: Request) {
   try {
     const data: SearchRequest = await request.json();
     
-    // Get page from query params
+    // Get query params
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
+    
+    // Get enabled polygon indices if provided in the request body
+    let enabledPolygonIndices = data.enabledPolygonIndices;
 
     // 1. Use custom locations if provided, otherwise use hardcoded ones
     let driveTimePolygons: DriveTimePolygon[] = [];
@@ -61,7 +65,7 @@ export async function POST(request: Request) {
       polygon: null, // Unused now, we filter by polygons inside searchProperties
       maxMonthlyPayment: data.budget.maxPerMonth,
       downPaymentPercent: data.budget.downPaymentPercent,
-    }, page);
+    }, page, data.enabledPolygonIndices);
 
     // 4. Return the results
     return NextResponse.json(searchResults);
@@ -74,16 +78,27 @@ export async function POST(request: Request) {
 // New API endpoint for just fetching properties directly with pagination
 export async function GET(request: Request) {
   try {
-    // Get page from query params
+    // Get query params
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
+    
+    // Get enabled polygon indices if provided in the query string
+    let enabledPolygonIndices: number[] | undefined = undefined;
+    const indicesParam = searchParams.get('enabledPolygonIndices');
+    if (indicesParam) {
+      try {
+        enabledPolygonIndices = JSON.parse(indicesParam);
+      } catch (e) {
+        console.warn("Failed to parse enabledPolygonIndices:", e);
+      }
+    }
     
     // Search for properties with default parameters
     const searchResults = await searchProperties({
       polygon: null, // No geographic constraints
       maxMonthlyPayment: 3000, // Default maximum monthly payment
       downPaymentPercent: 20, // Default down payment percentage
-    }, page);
+    }, page, enabledPolygonIndices);
 
     return NextResponse.json(searchResults);
   } catch (error) {

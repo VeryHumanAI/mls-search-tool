@@ -249,13 +249,17 @@ export async function prefetchAllProperties(onProgressUpdate?: (current: number,
 // Search for properties with pagination
 export async function searchProperties(
   params: PropertySearchParams, 
-  page = 1
+  page = 1,
+  enabledPolygonIndices?: number[]
 ): Promise<{properties: Property[], driveTimePolygons: DriveTimePolygon[], pagination: {currentPage: number, totalPages: number, totalCount: number}}> {
   try {
     // Calculate maximum home price based on monthly payment and down payment
     const maxPrice = calculateMaxHomePrice(params.maxMonthlyPayment, params.downPaymentPercent);
 
     console.log(`Searching properties with max price: ${maxPrice}, page: ${page}`);
+    if (enabledPolygonIndices) {
+      console.log(`Filtering by polygon indices: ${enabledPolygonIndices.join(', ')}`);
+    }
 
     // Fetch drive time polygons
     const driveTimePolygons = await fetchDriveTimePolygons();
@@ -279,9 +283,9 @@ export async function searchProperties(
         // Filter by price
         if (property.price > maxPrice) return false;
         
-        // Filter by location - must be inside at least one of the drive time polygons
+        // Filter by location - must be inside ALL of the enabled drive time polygons
         if (property.lat && property.lng) {
-          return isPointInPolygons(property.lat, property.lng, driveTimePolygons);
+          return isPointInPolygons(property.lat, property.lng, driveTimePolygons, enabledPolygonIndices);
         }
         
         return false; // Skip properties without coordinates

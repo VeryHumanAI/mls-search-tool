@@ -179,24 +179,42 @@ export function createCombinedPolygon(polygons: DriveTimePolygon[]): any {
   }
 }
 
-// Check if a point (property location) is inside any of the drive time polygons
-export function isPointInPolygons(lat: number, lng: number, polygons: DriveTimePolygon[]): boolean {
-  if (!lat || !lng || polygons.length === 0) {
+// Check if a point (property location) is inside ALL of the specified drive time polygons
+export function isPointInPolygons(
+  lat: number, 
+  lng: number, 
+  polygons: DriveTimePolygon[],
+  enabledPolygonIndices?: number[]
+): boolean {
+  if (!lat || !lng) {
     return false;
+  }
+
+  // Filter to only enabled polygons if specified
+  const polygonsToCheck = enabledPolygonIndices 
+    ? polygons.filter((_, index) => enabledPolygonIndices.includes(index))
+    : polygons;
+  
+  // If no polygons are enabled to check, return true (no filtering)
+  if (polygonsToCheck.length === 0) {
+    return true;
   }
 
   // Create a point
   const point = turf.point([lng, lat]);
 
   try {
-    // Check if the point is inside any of the polygons
-    for (const polygon of polygons) {
+    // Check if the point is inside EACH of the enabled polygons
+    for (const polygon of polygonsToCheck) {
       const geoJson = polygon.geoJson;
+      let isInsideCurrentPolygon = false;
 
       // Handle different GeoJSON structure possibilities
       if (!geoJson) {
         console.warn(`No geoJson data for polygon at address: ${polygon.address}`);
-        continue;
+        // For ALL logic, if any polygon is missing data and we can't check it,
+        // assume the point is not inside (fail the check)
+        return false;
       }
 
       // Case: FeatureCollection
@@ -204,7 +222,8 @@ export function isPointInPolygons(lat: number, lng: number, polygons: DriveTimeP
         for (const feature of geoJson.features) {
           try {
             if (turf.booleanPointInPolygon(point, feature)) {
-              return true;
+              isInsideCurrentPolygon = true;
+              break; // Found in at least one feature of this polygon
             }
           } catch (e) {
             console.warn(`Error checking point in polygon feature: ${e}`);
@@ -215,7 +234,7 @@ export function isPointInPolygons(lat: number, lng: number, polygons: DriveTimeP
       else if (geoJson.type === 'Feature' && geoJson.geometry) {
         try {
           if (turf.booleanPointInPolygon(point, geoJson)) {
-            return true;
+            isInsideCurrentPolygon = true;
           }
         } catch (e) {
           console.warn(`Error checking point in direct feature: ${e}`);
@@ -227,7 +246,7 @@ export function isPointInPolygons(lat: number, lng: number, polygons: DriveTimeP
           // Convert to a feature
           const feature = turf.feature(geoJson);
           if (turf.booleanPointInPolygon(point, feature)) {
-            return true;
+            isInsideCurrentPolygon = true;
           }
         } catch (e) {
           console.warn(`Error checking point in direct geometry: ${e}`);
@@ -235,10 +254,17 @@ export function isPointInPolygons(lat: number, lng: number, polygons: DriveTimeP
       } else {
         console.warn(`Unhandled geoJson type: ${geoJson.type}`);
       }
+      
+      // For ALL approach, if the point is not inside this polygon, return false immediately
+      if (!isInsideCurrentPolygon) {
+        return false;
+      }
     }
+    
+    // If we've checked all polygons and haven't returned false, the point is inside ALL polygons
+    return true;
   } catch (error) {
     console.error("Error in isPointInPolygons:", error);
+    return false;
   }
-
-  return false;
 }

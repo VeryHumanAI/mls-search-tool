@@ -16,10 +16,13 @@ export default function Home() {
   const [isPrefetching, setIsPrefetching] = useState(false);
   const [showAllProperties, setShowAllProperties] = useState(false);
 
-  // Fetch properties when the page loads, page changes, or showAllProperties changes
+  // State to track enabled polygon indices for filtering
+  const [enabledPolygonIndices, setEnabledPolygonIndices] = useState<number[] | undefined>(undefined);
+
+  // Fetch properties when the page loads, page changes, showAllProperties changes, or filter changes
   useEffect(() => {
     fetchDirectProperties();
-  }, [currentPage, showAllProperties]);
+  }, [currentPage, showAllProperties, enabledPolygonIndices]);
 
   // Handle search form submission
   async function handleSearch(formData, page = 1) {
@@ -108,10 +111,16 @@ export default function Home() {
   async function fetchDirectProperties() {
     setIsDirectLoading(true);
     try {
+      // Create request URL with query params
+      const baseUrl = `/api/search?page=${currentPage}`;
+      const url = enabledPolygonIndices 
+        ? `${baseUrl}&enabledPolygonIndices=${JSON.stringify(enabledPolygonIndices)}` 
+        : baseUrl;
+      
       // If we're showing all properties, we need to fetch them from all cached pages
       if (showAllProperties) {
         // First get page 1 to determine how many total pages there are
-        const response = await fetch(`/api/search?page=1`);
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error("Failed to fetch properties");
         }
@@ -125,7 +134,11 @@ export default function Home() {
         // Fetch remaining pages if needed
         if (totalPages > 1) {
           for (let page = 2; page <= totalPages; page++) {
-            const pageResponse = await fetch(`/api/search?page=${page}`);
+            const pageUrl = enabledPolygonIndices 
+              ? `/api/search?page=${page}&enabledPolygonIndices=${JSON.stringify(enabledPolygonIndices)}` 
+              : `/api/search?page=${page}`;
+            
+            const pageResponse = await fetch(pageUrl);
             if (pageResponse.ok) {
               const pageData = await pageResponse.json();
               if (pageData.properties && Array.isArray(pageData.properties)) {
@@ -147,7 +160,7 @@ export default function Home() {
         });
       } else {
         // Just fetch the current page
-        const response = await fetch(`/api/search?page=${currentPage}`);
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error("Failed to fetch properties");
         }
@@ -256,6 +269,9 @@ export default function Home() {
               <PropertyResults 
                 results={directResults} 
                 onPageChange={showAllProperties ? undefined : handlePageChange}
+                onFilterChange={(indices) => {
+                  setEnabledPolygonIndices(indices.length > 0 ? indices : undefined);
+                }}
               />
             ) : (
               <div className="p-8 text-center bg-gray-50 rounded-lg">
