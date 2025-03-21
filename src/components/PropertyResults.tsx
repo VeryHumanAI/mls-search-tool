@@ -2,12 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Icon } from 'leaflet';
 
-// Import Leaflet CSS
-import 'leaflet/dist/leaflet.css';
-
-// Dynamically import Leaflet components with no SSR
+// Dynamically import Map component with no SSR
 const MapContainer = dynamic(
   () => import('react-leaflet').then((mod) => mod.MapContainer),
   { ssr: false }
@@ -32,17 +28,6 @@ const GeoJSON = dynamic(
   () => import('react-leaflet').then((mod) => mod.GeoJSON),
   { ssr: false }
 );
-
-// Fix for default marker icon in Leaflet with Next.js
-const defaultIcon = new Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
 
 // Types
 type Property = {
@@ -78,6 +63,17 @@ export function PropertyResults({ results }: PropertyResultsProps) {
 
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    // Configure Leaflet icon here since it requires window
+    const L = require('leaflet');
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: '/marker-icon-2x.png',
+      iconUrl: '/marker-icon.png',
+      shadowUrl: '/marker-shadow.png',
+    });
   }, []);
 
   // Mock properties data if no results are provided
@@ -156,7 +152,6 @@ export function PropertyResults({ results }: PropertyResultsProps) {
             <Marker 
               key={property.id} 
               position={[property.lat, property.lng]}
-              icon={defaultIcon}
             >
               <Popup>
                 <div className="w-64">
