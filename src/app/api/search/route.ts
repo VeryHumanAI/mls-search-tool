@@ -4,6 +4,7 @@ import { searchProperties, getAllCachedProperties } from "@/lib/propertyService"
 import { Property, DriveTimePolygon } from "@/types/property";
 import * as turf from "@turf/turf";
 import { fetchDriveTimePolygons } from "@/lib/driveTimeLocations";
+import { clearCache, debugCacheFiles } from "@/lib/cache";
 
 // Type for request body
 type SearchRequest = {
@@ -99,30 +100,23 @@ export async function GET(request: Request) {
 
     // Check if we should use the "all" mode
     const allMode = searchParams.get("all") === "true";
-    
+
     // Default parameters for search
     const propertySearchParams = {
       polygon: null, // No geographic constraints
-      maxMonthlyPayment: 5000, // Default maximum monthly payment
+      maxMonthlyPayment: 4000, // Default maximum monthly payment
       downPaymentPercent: 3.5, // Default down payment percentage
     };
-    
+
     let searchResults;
-    
+
     if (allMode) {
       // Get all cached properties at once (no pagination)
       console.log("Using ALL mode - fetching all cached properties");
-      searchResults = await getAllCachedProperties(
-        propertySearchParams,
-        enabledPolygonIndices
-      );
+      searchResults = await getAllCachedProperties(propertySearchParams, enabledPolygonIndices);
     } else {
       // Regular paginated search
-      searchResults = await searchProperties(
-        propertySearchParams,
-        page,
-        enabledPolygonIndices
-      );
+      searchResults = await searchProperties(propertySearchParams, page, enabledPolygonIndices);
     }
 
     return NextResponse.json(searchResults);

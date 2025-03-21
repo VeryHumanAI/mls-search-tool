@@ -140,21 +140,20 @@ export async function fetchPropertiesFromRapidApi(
     return { properties: [], totalCount: 0, totalPages: 0 };
   }
 
-  // Calculate offset based on page and limit
-  const offset = (page - 1) * limit;
+  console.log(`DEBUG: Fetching page ${page} with limit ${limit}`);
 
   const options = {
     method: "GET",
     url: "https://realtor16.p.rapidapi.com/search/forsale",
     params: {
-      location: "hamilton county, tn",
-      type: "single_family,duplex_triplex,multi_family",
-      limit: limit.toString(),
-      offset: offset.toString(),
-      search_radius: "50",
+      "list_price-max": "750000",
       foreclosure: "false",
-      "list_price-max": "650000",
-      sort: "relevant",
+      limit: limit.toString(),
+      location: "hamilton county, tn",
+      page: page.toString(),
+      search_radius: "50",
+      sort: "newest",
+      type: "single_family,duplex_triplex,multi_family",
     },
     headers: {
       "x-rapidapi-key": RAPIDAPI_KEY,
@@ -180,6 +179,28 @@ export async function fetchPropertiesFromRapidApi(
       // Get the total count of properties if available
       const totalCount = data.matching_rows || data.total || data.properties.length;
       const totalPages = Math.ceil(totalCount / limit);
+
+      // Log API response details for debugging
+      console.log(`RapidAPI Response for page ${page}:
+        - Search parameters: ${JSON.stringify(options.params)}
+        - Total properties found in response: ${data.properties.length}
+        - Total matching rows: ${data.matching_rows || "Not provided"}
+        - Data total: ${data.total || "Not provided"}
+        - First few property IDs: ${data.properties
+          .slice(0, 3)
+          .map((p) => p.property_id || p.listing_id)
+          .join(", ")}
+        - First few property addresses: ${data.properties
+          .slice(0, 3)
+          .map((p) => p.location?.address?.line || "No address")
+          .join(" | ")}
+        - Last few property IDs: ${data.properties
+          .slice(-3)
+          .map((p) => p.property_id || p.listing_id)
+          .join(", ")}
+        - Calculated total pages: ${totalPages}
+        - Pagination context from response: ${JSON.stringify(data.meta?.pagination || {})}
+      `);
 
       // Transform the API response into our Property type
       const properties = data.properties.map((property: any) => {
@@ -233,21 +254,21 @@ export async function getAllCachedProperties(
 ): Promise<{
   properties: Property[];
   driveTimePolygons: DriveTimePolygon[];
-  pagination: {currentPage: number, totalPages: number, totalCount: number};
+  pagination: { currentPage: number; totalPages: number; totalCount: number };
   filterStats: FilterStats;
 }> {
   try {
     // Calculate maximum home price based on monthly payment and down payment
     const maxPrice = calculateMaxHomePrice(params.maxMonthlyPayment, params.downPaymentPercent);
     console.log(`Searching ALL properties with max price: $${maxPrice.toLocaleString()}`);
-    
+
     if (enabledPolygonIndices) {
-      console.log(`Filtering by polygon indices: ${enabledPolygonIndices.join(', ')}`);
+      console.log(`Filtering by polygon indices: ${enabledPolygonIndices.join(", ")}`);
     }
 
     // Fetch drive time polygons
     const driveTimePolygons = await fetchDriveTimePolygons();
-    
+
     // Get all cached pages
     // First get page 1 to determine how many total pages there are
     const firstPageResult = getCachedProperties(1);
@@ -265,14 +286,16 @@ export async function getAllCachedProperties(
           maxPriceFilter: maxPrice,
           maxMonthlyPaymentFilter: params.maxMonthlyPayment,
           downPaymentPercent: params.downPaymentPercent,
-          enabledPolygonCount: enabledPolygonIndices ? enabledPolygonIndices.length : driveTimePolygons.length
-        }
+          enabledPolygonCount: enabledPolygonIndices
+            ? enabledPolygonIndices.length
+            : driveTimePolygons.length,
+        },
       };
     }
-    
+
     // Determine how many pages we have cached
     const totalPages = firstPageResult.totalPages;
-    
+
     // Load all properties from all pages
     let allProperties: Property[] = [];
     for (let page = 1; page <= totalPages; page++) {
@@ -281,74 +304,84 @@ export async function getAllCachedProperties(
         allProperties = [...allProperties, ...pageData.properties];
       }
     }
-    
+
     console.log(`Loaded ${allProperties.length} total properties from ${totalPages} cached pages`);
-    console.log(`Filtering ${allProperties.length} properties with max price: $${maxPrice.toLocaleString()}`);
-    
+    console.log(
+      `Filtering ${allProperties.length} properties with max price: $${maxPrice.toLocaleString()}`
+    );
+
     // Filter all properties
     const filteredProperties = allProperties
       .filter((property) => {
         const monthlyPayment = calculateMonthlyPayment(property.price, params.downPaymentPercent);
         const priceFilter = property.price <= maxPrice;
-        
+
         // Skip detailed logging for most properties since there could be thousands
-        if (!priceFilter && Math.random() < 0.01) { // Only log about 1% of filtered properties
-          console.log(`PRICE FILTER: Property ID ${property.id}: $${property.price.toLocaleString()} exceeds max price $${maxPrice.toLocaleString()} [Address: ${property.address}]`);
+        if (!priceFilter && Math.random() < 0.01) {
+          // Only log about 1% of filtered properties
+          console.log(
+            `PRICE FILTER: Property ID ${property.id}: $${property.price.toLocaleString()} exceeds max price $${maxPrice.toLocaleString()} [Address: ${property.address}]`
+          );
         }
-        
+
         // If already failing price filter, return early before location check
         if (!priceFilter) return false;
-        
+
         // Filter by location - must be inside ALL of the enabled drive time polygons
         if (property.lat && property.lng) {
-          const locationFilter = isPointInPolygons(property.lat, property.lng, driveTimePolygons, enabledPolygonIndices);
+          const locationFilter = isPointInPolygons(
+            property.lat,
+            property.lng,
+            driveTimePolygons,
+            enabledPolygonIndices
+          );
           return locationFilter;
         }
-        
+
         return false; // Skip properties without coordinates
       })
       .map((property) => ({
         ...property,
         monthlyPayment: calculateMonthlyPayment(property.price, params.downPaymentPercent),
       }));
-    
+
     // Apply optional filters
     let result = filteredProperties;
-    
+
     // Filter by minimum bedrooms
     if (params.minBedrooms) {
-      result = result.filter(property => property.bedrooms >= params.minBedrooms!);
+      result = result.filter((property) => property.bedrooms >= params.minBedrooms!);
     }
-    
+
     // Filter by minimum bathrooms
     if (params.minBathrooms) {
-      result = result.filter(property => property.bathrooms >= params.minBathrooms!);
+      result = result.filter((property) => property.bathrooms >= params.minBathrooms!);
     }
-    
+
     // Filter by minimum square feet
     if (params.minSquareFeet) {
-      result = result.filter(property => property.squareFeet >= params.minSquareFeet!);
+      result = result.filter((property) => property.squareFeet >= params.minSquareFeet!);
     }
-    
+
     // Calculate filtering statistics
-    const totalAfterPriceFilter = allProperties.filter(p => p.price <= maxPrice).length;
+    const totalAfterPriceFilter = allProperties.filter((p) => p.price <= maxPrice).length;
     const totalFilteredByPrice = allProperties.length - totalAfterPriceFilter;
     const totalFilteredByLocation = totalAfterPriceFilter - result.length;
-    
+
     console.log(`ALL PROPERTIES FILTER STATS:
     - Starting with ${allProperties.length} total properties
-    - Filtered out ${totalFilteredByPrice} properties by price (${Math.round(totalFilteredByPrice/allProperties.length*100)}%)
-    - Filtered out ${totalFilteredByLocation} properties by location (${Math.round(totalFilteredByLocation/allProperties.length*100)}%)
-    - Remaining: ${result.length} properties (${Math.round(result.length/allProperties.length*100)}% of original)
+    - Filtered out ${totalFilteredByPrice} properties by price (${Math.round((totalFilteredByPrice / allProperties.length) * 100)}%)
+    - Filtered out ${totalFilteredByLocation} properties by location (${Math.round((totalFilteredByLocation / allProperties.length) * 100)}%)
+    - Remaining: ${result.length} properties (${Math.round((result.length / allProperties.length) * 100)}% of original)
     `);
-    
+
     return {
       properties: result,
       driveTimePolygons,
       pagination: {
         currentPage: 1,
         totalPages: 1,
-        totalCount: result.length
+        totalCount: result.length,
       },
       filterStats: {
         totalPropertiesOnPage: allProperties.length,
@@ -358,8 +391,10 @@ export async function getAllCachedProperties(
         maxPriceFilter: maxPrice,
         maxMonthlyPaymentFilter: params.maxMonthlyPayment,
         downPaymentPercent: params.downPaymentPercent,
-        enabledPolygonCount: enabledPolygonIndices ? enabledPolygonIndices.length : driveTimePolygons.length
-      }
+        enabledPolygonCount: enabledPolygonIndices
+          ? enabledPolygonIndices.length
+          : driveTimePolygons.length,
+      },
     };
   } catch (error) {
     console.error("Error getting all cached properties:", error);

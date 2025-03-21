@@ -5,7 +5,75 @@ import { Property } from "@/types/property";
 // Cache configuration
 const CACHE_DIR = path.join(process.cwd(), ".cache");
 const PROPERTIES_CACHE_PREFIX = path.join(CACHE_DIR, "properties_page_");
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+
+// Debug function to check if cache files have unique content
+export function debugCacheFiles(): void {
+  try {
+    ensureCacheDir();
+    
+    // Read all files in cache directory
+    const files = fs.readdirSync(CACHE_DIR);
+    
+    // Filter for property cache files
+    const propertyCacheFiles = files.filter(file => 
+      file.startsWith('properties_page_') && file.endsWith('.json')
+    ).sort();
+    
+    console.log(`Found ${propertyCacheFiles.length} property cache files`);
+    
+    // Compare file sizes
+    const fileSizes = propertyCacheFiles.map(file => {
+      const stats = fs.statSync(path.join(CACHE_DIR, file));
+      return { file, size: stats.size };
+    });
+    
+    console.log("Cache file sizes:");
+    fileSizes.forEach(({file, size}) => {
+      console.log(`  ${file}: ${size} bytes`);
+    });
+    
+    // Check if all files have the same size (a potential indicator of duplicate content)
+    const uniqueSizes = new Set(fileSizes.map(f => f.size));
+    if (uniqueSizes.size === 1) {
+      console.warn("WARNING: All cache files have the same size. They might contain duplicate data!");
+    }
+    
+    // Sample a few files to check their content
+    if (propertyCacheFiles.length > 1) {
+      try {
+        const file1 = fs.readFileSync(path.join(CACHE_DIR, propertyCacheFiles[0]), 'utf-8');
+        const file2 = fs.readFileSync(path.join(CACHE_DIR, propertyCacheFiles[1]), 'utf-8');
+        
+        const data1 = JSON.parse(file1);
+        const data2 = JSON.parse(file2);
+        
+        // Check if properties arrays have the same length
+        const props1Len = data1.data.properties.length;
+        const props2Len = data2.data.properties.length;
+        
+        console.log(`Page 1 has ${props1Len} properties, Page 2 has ${props2Len} properties`);
+        
+        // Check the first few property IDs
+        const ids1 = data1.data.properties.slice(0,3).map((p:any) => p.id);
+        const ids2 = data2.data.properties.slice(0,3).map((p:any) => p.id);
+        
+        console.log(`Page 1 first property IDs: ${ids1.join(', ')}`);
+        console.log(`Page 2 first property IDs: ${ids2.join(', ')}`);
+        
+        // Check if they're identical
+        const sameIds = ids1.every((id:string, i:number) => id === ids2[i]);
+        if (sameIds) {
+          console.warn("WARNING: First few property IDs are identical between pages!");
+        }
+      } catch (e) {
+        console.error("Error comparing cache files:", e);
+      }
+    }
+  } catch (e) {
+    console.error("Error debugging cache files:", e);
+  }
+}
 
 // Ensure cache directory exists
 function ensureCacheDir() {

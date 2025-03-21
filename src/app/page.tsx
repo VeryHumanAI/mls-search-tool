@@ -192,6 +192,24 @@ export default function Home() {
             >
               Debug Isochrones
             </button>
+            <button
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debugCache?clear=true");
+                  if (response.ok) {
+                    alert("Cache has been debugged and cleared. Check server logs for details.");
+                    // Reload the page after clearing cache
+                    window.location.reload();
+                  }
+                } catch (error) {
+                  console.error("Error debugging cache:", error);
+                  alert("Error debugging cache. See console for details.");
+                }
+              }}
+              className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition"
+            >
+              Debug & Clear Cache
+            </button>
           </div>
         </div>
 
