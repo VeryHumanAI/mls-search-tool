@@ -11,19 +11,19 @@ const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // Hardcoded locations with drive times
 export const DRIVE_TIME_LOCATIONS = [
+  // 10 minutes
+  { address: "3727 Forest Highland Circle, Chattanooga, TN 37415", driveTime: "10 minutes" },
+  { address: "Society of Work - Northshore, 110 Somerville Avenue, Chattanooga, TN 37405", driveTime: "10 minutes" },
+  
   // 15 minutes
-  { address: "3727 Forest Highland Circle, Chattanooga, TN 37415", driveTime: "15 minutes" },
-  { address: "Society of Work - Northshore, 110 Somerville Avenue, Chattanooga, TN 37405", driveTime: "15 minutes" },
+  { address: "Greenway Farms Dog Park, Walker Cemetery, Chattanooga, TN 37344", driveTime: "15 minutes" },
+  { address: "McKamey Animal Center, 4500 N Access Rd, Chattanooga, TN 37415", driveTime: "15 minutes" },
+  { address: "Miller's Ale House, 2119 Gunbarrel Road, Chattanooga, TN 37421", driveTime: "15 minutes" },
+  { address: "Liberty Tower, 605 Chestnut Street, Chattanooga, TN 37450", driveTime: "15 minutes" },
   
   // 20 minutes
-  { address: "Greenway Farms Dog Park, Walker Cemetery, Chattanooga, TN 37344", driveTime: "20 minutes" },
-  { address: "McKamey Animal Center, 4500 N Access Rd, Chattanooga, TN 37415", driveTime: "20 minutes" },
-  { address: "Miller's Ale House, 2119 Gunbarrel Road, Chattanooga, TN 37421", driveTime: "20 minutes" },
-  { address: "Liberty Tower, 605 Chestnut Street, Chattanooga, TN 37450", driveTime: "20 minutes" },
-  
-  // 25 minutes
-  { address: "Brainerd Baptist School, 4107 Mayfair Ave, Chattanooga, TN 37411", driveTime: "25 minutes" },
-  { address: "Chattanooga Christian School, 3354 Charger Drive, Chattanooga, TN 37409", driveTime: "25 minutes" },
+  { address: "Brainerd Baptist School, 4107 Mayfair Ave, Chattanooga, TN 37411", driveTime: "20 minutes" },
+  { address: "Chattanooga Christian School, 3354 Charger Drive, Chattanooga, TN 37409", driveTime: "20 minutes" },
 ];
 
 // Ensure cache directory exists

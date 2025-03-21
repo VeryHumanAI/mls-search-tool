@@ -173,7 +173,7 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                   className={`
                     flex items-center p-1.5 text-sm rounded cursor-pointer
                     ${hoveredIsochrones.has(i) ? 'bg-blue-100' : ''}
-                    ${i % 2 === 0 ? 'bg-gray-50' : ''}
+                    ${getDriveTimeBackground(p.driveTime)}
                   `}
                   onMouseEnter={() => {
                     const newHovered = new Set(hoveredIsochrones);
@@ -663,10 +663,45 @@ function pointInPolygon(point, polygon) {
   }
 }
 
+// Get a background color class based on drive time
+function getDriveTimeBackground(driveTime: string): string {
+  if (driveTime.includes("10")) {
+    return "bg-green-50";
+  } else if (driveTime.includes("15")) {
+    return "bg-blue-50";
+  } else if (driveTime.includes("20")) {
+    return "bg-orange-50";
+  }
+  return "bg-gray-50";
+}
+
 function getColorForIndex(index: number): string {
-  const colors = [
-    "#3388ff", // Blue
+  // Group colors by drive time
+  const timeColors = {
+    // 10 minutes - greens
+    0: "#33a02c", // Dark Green
+    1: "#b2df8a", // Light Green
+    
+    // 15 minutes - blues
+    2: "#3388ff", // Blue
+    3: "#6a3d9a", // Purple
+    4: "#a6cee3", // Light Blue
+    5: "#9090ff", // Soft Blue
+    
+    // 20 minutes - oranges/reds
+    6: "#ff7f00", // Orange
+    7: "#e31a1c", // Red
+  };
+  
+  // If we have a specific color for this index, use it
+  if (index in timeColors) {
+    return timeColors[index];
+  }
+  
+  // Otherwise use a fallback array
+  const fallbackColors = [
     "#33a02c", // Green
+    "#3388ff", // Blue
     "#ff7f00", // Orange
     "#e31a1c", // Red
     "#6a3d9a", // Purple
@@ -677,5 +712,5 @@ function getColorForIndex(index: number): string {
     "#fb9a99", // Light Red
   ];
 
-  return colors[index % colors.length];
+  return fallbackColors[index % fallbackColors.length];
 }
