@@ -34,6 +34,17 @@ export interface DriveTimePolygon {
   geoJson: any;
 }
 
+export interface FilterStats {
+  totalPropertiesOnPage: number;
+  filteredByPrice: number;
+  filteredByLocation: number;
+  remainingAfterFilters: number;
+  maxPriceFilter: number;
+  maxMonthlyPaymentFilter: number;
+  downPaymentPercent: number;
+  enabledPolygonCount: number;
+}
+
 export interface SearchResults {
   properties: Property[];
   driveTimePolygons: DriveTimePolygon[];
@@ -43,4 +54,5 @@ export interface SearchResults {
     totalCount: number;
   };
   formData?: any; // Store form data for pagination
+  filterStats?: FilterStats; // Statistics about filtering results
 }

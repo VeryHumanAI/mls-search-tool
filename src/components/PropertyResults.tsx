@@ -634,6 +634,46 @@ export function PropertyResults({ results, onPageChange, onFilterChange }: Prope
         </div>
       )}
 
+      {/* Filter Stats */}
+      {results.filterStats && (
+        <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <h4 className="text-sm font-semibold mb-2">Filter Summary</h4>
+          <div className="text-xs text-gray-600 space-y-1">
+            <p>
+              <span className="font-medium">Max Monthly Payment:</span> ${results.filterStats.maxMonthlyPaymentFilter.toLocaleString()} with {results.filterStats.downPaymentPercent}% down
+              <span className="ml-2 text-gray-500">(Max home price: ${Math.round(results.filterStats.maxPriceFilter).toLocaleString()})</span>
+            </p>
+            <p>
+              <span className="font-medium">Location Constraints:</span> Properties must be within {results.filterStats.enabledPolygonCount} selected areas
+            </p>
+            <div className="flex items-center mt-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="bg-blue-600 h-2.5 rounded-full" style={{ 
+                  width: `${Math.min(100, Math.round(results.filterStats.remainingAfterFilters / results.filterStats.totalPropertiesOnPage * 100))}%` 
+                }}></div>
+              </div>
+              <span className="ml-2 text-xs font-medium">
+                {Math.round(results.filterStats.remainingAfterFilters / results.filterStats.totalPropertiesOnPage * 100)}% match
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-1">
+              <div>
+                <span className="inline-block w-3 h-3 mr-1 bg-red-400 rounded-sm"></span>
+                {results.filterStats.filteredByPrice} filtered by price
+              </div>
+              <div>
+                <span className="inline-block w-3 h-3 mr-1 bg-yellow-400 rounded-sm"></span>
+                {results.filterStats.filteredByLocation} filtered by location
+              </div>
+              <div>
+                <span className="inline-block w-3 h-3 mr-1 bg-green-400 rounded-sm"></span>
+                {results.filterStats.remainingAfterFilters} passed all filters
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pagination */}
       {properties.length > 0 && results.pagination && results.pagination.totalPages > 1 && (
         <div className="flex justify-center mt-8">
