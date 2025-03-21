@@ -1,6 +1,9 @@
 import axios from "axios";
+import getConfig from "next/config";
 
-const GEOAPIFY_API_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || "YOUR_API_KEY_HERE";
+// Get server-side config
+const { serverRuntimeConfig } = getConfig() || { serverRuntimeConfig: {} };
+const GEOAPIFY_API_KEY = serverRuntimeConfig.NEXT_PUBLIC_GEOAPIFY_API_KEY || process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || "YOUR_API_KEY_HERE";
 
 // Geocode an address to get lat/lng coordinates
 export async function geocodeAddress(address: string) {
@@ -32,13 +35,14 @@ export async function geocodeAddress(address: string) {
 // Get isochrone (drive time polygon) for a location
 export async function getDriveTimeIsochrone(lat: number, lon: number, timeMinutes: number) {
   try {
-    const response = await axios.get("https://api.geoapify.com/v1/isochrone", {
+    // Using correct parameters based on Geoapify documentation
+    const response = await axios.get("https://api.geoapify.com/v1/isoline", {
       params: {
         lat,
         lon,
-        type: "drive",
-        range: timeMinutes * 60, // Convert minutes to seconds
-        rangeType: "time",
+        type: "time", // 'time' is the type, not 'drive'
+        mode: "drive", // 'drive' is the mode
+        range: timeMinutes * 60, // Convert minutes to seconds (900 = 15 minutes)
         apiKey: GEOAPIFY_API_KEY,
       },
     });

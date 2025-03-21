@@ -1,7 +1,12 @@
 import axios from "axios";
 import getConfig from "next/config";
-import { Property, PropertySearchParams } from "@/types/property";
+import { Property, PropertySearchParams, DriveTimePolygon } from "@/types/property";
 import { getCachedProperties, cacheProperties } from "./cache";
+import { 
+  fetchDriveTimePolygons, 
+  createCombinedPolygon, 
+  isPointInPolygons 
+} from "./driveTimeLocations";
 
 // Get server-side config
 const { serverRuntimeConfig } = getConfig() || { serverRuntimeConfig: {} };
@@ -150,25 +155,64 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
 }
 
 // Search for properties
-export async function searchProperties(params: PropertySearchParams): Promise<Property[]> {
+export async function searchProperties(params: PropertySearchParams): Promise<{properties: Property[], driveTimePolygons: DriveTimePolygon[]}> {
   try {
     // Calculate maximum home price based on monthly payment and down payment
     const maxPrice = calculateMaxHomePrice(params.maxMonthlyPayment, params.downPaymentPercent);
 
     console.log("Searching properties with max price:", maxPrice);
 
+    // Fetch drive time polygons
+    const driveTimePolygons = await fetchDriveTimePolygons();
+    
+    // Create a combined polygon for visualization
+    const combinedPolygon = createCombinedPolygon(driveTimePolygons);
+
     // Fetch properties from RapidAPI
     const properties = await fetchPropertiesFromRapidApi();
 
-    // Filter properties based on price and calculate monthly payment
+    // Filter properties based on price, location (in polygons), and calculate monthly payment
     const filteredProperties = properties
-      .filter((property) => property.price <= maxPrice)
+      .filter((property) => {
+        // Filter by price
+        if (property.price > maxPrice) return false;
+        
+        // Filter by location - must be inside at least one of the drive time polygons
+        if (property.lat && property.lng) {
+          return isPointInPolygons(property.lat, property.lng, driveTimePolygons);
+        }
+        
+        return false; // Skip properties without coordinates
+      })
       .map((property) => ({
         ...property,
         monthlyPayment: calculateMonthlyPayment(property.price, params.downPaymentPercent),
       }));
 
-    return filteredProperties;
+    // Apply optional filters
+    let result = filteredProperties;
+    
+    // Filter by minimum bedrooms
+    if (params.minBedrooms) {
+      result = result.filter(property => property.bedrooms >= params.minBedrooms!);
+    }
+    
+    // Filter by minimum bathrooms
+    if (params.minBathrooms) {
+      result = result.filter(property => property.bathrooms >= params.minBathrooms!);
+    }
+    
+    // Filter by minimum square feet
+    if (params.minSquareFeet) {
+      result = result.filter(property => property.squareFeet >= params.minSquareFeet!);
+    }
+
+    console.log(`Found ${result.length} properties after filtering`);
+
+    return {
+      properties: result,
+      driveTimePolygons
+    };
   } catch (error) {
     console.error("Error searching properties:", error);
     throw error;

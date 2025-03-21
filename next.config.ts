@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   },
   // Environment variables that should only be available on the server
   serverRuntimeConfig: {
+    NEXT_PUBLIC_GEOAPIFY_API_KEY: process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY,
     NEXT_RAPIDAPI_HOST: process.env.NEXT_RAPIDAPI_HOST,
     NEXT_RAPIDAPI_KEY: process.env.NEXT_RAPIDAPI_KEY,
   },
