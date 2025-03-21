@@ -1,10 +1,5 @@
 import axios from 'axios';
 
-// This is a mock service. In a real application, you would integrate with an actual MLS API
-// or use a service like SimplyRETS, Zillow, Redfin, etc.
-
-const API_KEY = process.env.NEXT_PUBLIC_MLS_API_KEY || 'YOUR_MLS_API_KEY';
-
 // Types
 export type PropertySearchParams = {
   // Geographic constraints
@@ -20,6 +15,20 @@ export type PropertySearchParams = {
   minSquareFeet?: number;
   propertyType?: string;
   maxDaysOnMarket?: number;
+};
+
+export type Property = {
+  id: string;
+  address: string;
+  price: number;
+  bedrooms: number;
+  bathrooms: number;
+  squareFeet: number;
+  lat: number;
+  lng: number;
+  imageUrl: string;
+  listingUrl: string;
+  monthlyPayment: number;
 };
 
 // Calculate monthly mortgage payment
@@ -86,11 +95,70 @@ export function calculateMaxHomePrice(
   return totalPrice;
 }
 
+// Fetch properties from RapidAPI
+export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
+  const RAPIDAPI_KEY = process.env.NEXT_RAPIDAPI_KEY;
+  const RAPIDAPI_HOST = process.env.NEXT_RAPIDAPI_HOST;
+
+  if (!RAPIDAPI_KEY || !RAPIDAPI_HOST) {
+    console.error('RapidAPI credentials are missing');
+    return [];
+  }
+
+  const options = {
+    method: 'GET',
+    url: 'https://realtor16.p.rapidapi.com/search/forsale',
+    params: {
+      location: 'hamilton county, tn',
+      type: 'single_family,duplex_triplex,multi_family',
+      limit: '200',
+      search_radius: '25',
+      foreclosure: 'false',
+      'list_price-max': '500000'
+    },
+    headers: {
+      'x-rapidapi-key': RAPIDAPI_KEY,
+      'x-rapidapi-host': RAPIDAPI_HOST
+    }
+  };
+
+  try {
+    console.log('Fetching properties from RapidAPI...');
+    const response = await axios.request(options);
+    const data = response.data;
+    
+    if (!data.properties || !Array.isArray(data.properties)) {
+      console.error('Invalid response format from RapidAPI:', data);
+      return [];
+    }
+
+    // Transform the API response into our Property type
+    return data.properties.map((property: any) => {
+      const price = property.list_price || 0;
+      const address = property.location?.address || {};
+      
+      return {
+        id: property.property_id || property.listing_id || String(Math.random()),
+        address: `${address.line || ''}, ${address.city || ''}, ${address.state_code || ''} ${address.postal_code || ''}`,
+        price: price,
+        bedrooms: property.description?.beds || 0,
+        bathrooms: parseFloat(property.description?.baths_consolidated || '0'),
+        squareFeet: property.description?.sqft || 0,
+        lat: address.coordinate?.lat || 0,
+        lng: address.coordinate?.lon || 0,
+        imageUrl: property.primary_photo?.href || 'https://via.placeholder.com/300x200',
+        listingUrl: property.permalink ? `https://www.realtor.com/realestateandhomes-detail/${property.permalink}` : '#',
+        monthlyPayment: 0, // We'll calculate this later
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching properties from RapidAPI:', error);
+    return [];
+  }
+}
+
 // Search for properties
-export async function searchProperties(params: PropertySearchParams) {
-  // In a real application, you would call an actual MLS API here
-  // This is a mock implementation
-  
+export async function searchProperties(params: PropertySearchParams): Promise<Property[]> {
   try {
     // Calculate maximum home price based on monthly payment and down payment
     const maxPrice = calculateMaxHomePrice(
@@ -98,53 +166,20 @@ export async function searchProperties(params: PropertySearchParams) {
       params.downPaymentPercent
     );
     
-    // Mock API call - in reality, you would send the parameters to your MLS API
-    // or real estate data provider
     console.log('Searching properties with max price:', maxPrice);
-    console.log('Polygon:', params.polygon);
     
-    // Mock response - in a real app you would get these from the API
-    return [
-      {
-        id: '1',
-        address: '123 Main St, Anytown, USA',
-        price: 450000,
-        bedrooms: 3,
-        bathrooms: 2,
-        squareFeet: 1800,
-        lat: 37.7749,
-        lng: -122.4194,
-        imageUrl: 'https://via.placeholder.com/300x200',
-        listingUrl: '#',
-        monthlyPayment: calculateMonthlyPayment(450000, params.downPaymentPercent),
-      },
-      {
-        id: '2',
-        address: '456 Oak Ave, Somewhere, USA',
-        price: 525000,
-        bedrooms: 4,
-        bathrooms: 2.5,
-        squareFeet: 2100,
-        lat: 37.7848,
-        lng: -122.4294,
-        imageUrl: 'https://via.placeholder.com/300x200',
-        listingUrl: '#',
-        monthlyPayment: calculateMonthlyPayment(525000, params.downPaymentPercent),
-      },
-      {
-        id: '3',
-        address: '789 Pine St, Elsewhere, USA',
-        price: 375000,
-        bedrooms: 2,
-        bathrooms: 2,
-        squareFeet: 1500,
-        lat: 37.7648,
-        lng: -122.4094,
-        imageUrl: 'https://via.placeholder.com/300x200',
-        listingUrl: '#',
-        monthlyPayment: calculateMonthlyPayment(375000, params.downPaymentPercent),
-      },
-    ];
+    // Fetch properties from RapidAPI
+    const properties = await fetchPropertiesFromRapidApi();
+    
+    // Filter properties based on price and calculate monthly payment
+    const filteredProperties = properties
+      .filter(property => property.price <= maxPrice)
+      .map(property => ({
+        ...property,
+        monthlyPayment: calculateMonthlyPayment(property.price, params.downPaymentPercent)
+      }));
+    
+    return filteredProperties;
   } catch (error) {
     console.error('Error searching properties:', error);
     throw error;

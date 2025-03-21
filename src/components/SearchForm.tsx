@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
-import { PropertyResults } from './PropertyResults';
 import { LoadingSpinner } from './LoadingSpinner';
 import { AddressAutocomplete } from './AddressAutocomplete';
 
@@ -20,6 +19,10 @@ type SearchFormValues = {
     maxPerMonth: number;
     downPaymentPercent: number;
   };
+};
+
+type SearchFormProps = {
+  onSubmit?: (data: SearchFormValues) => void;
 };
 
 // Validation schema
@@ -52,8 +55,7 @@ const schema = yup.object().shape({
 // Drive time options
 const driveTimeOptions = ['5 min', '10 min', '15 min', '20 min', '30 min', '45 min', '60 min'];
 
-export function SearchForm() {
-  const [searchResults, setSearchResults] = useState(null);
+export function SearchForm({ onSubmit: externalSubmit }: SearchFormProps) {
   const [isSearching, setIsSearching] = useState(false);
 
   const {
@@ -79,77 +81,27 @@ export function SearchForm() {
 
   const onSubmit = async (data: SearchFormValues) => {
     setIsSearching(true);
+    
     try {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+      if (externalSubmit) {
+        // Use the external submit handler if provided
+        externalSubmit(data);
+      } else {
+        // Default submit behavior if no external handler
+        const response = await fetch('/api/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
       }
-      
-      const results = await response.json();
-      setSearchResults(results);
     } catch (error) {
       console.error('Error searching properties:', error);
-      // Show mock results in development
-      if (process.env.NODE_ENV === 'development') {
-        setSearchResults({
-          properties: [
-            {
-              id: '1',
-              address: '123 Main St, Anytown, USA',
-              price: 450000,
-              bedrooms: 3,
-              bathrooms: 2,
-              squareFeet: 1800,
-              lat: 37.7749,
-              lng: -122.4194,
-              imageUrl: 'https://via.placeholder.com/300x200',
-              listingUrl: '#',
-              monthlyPayment: 2200,
-            },
-            {
-              id: '2',
-              address: '456 Oak Ave, Somewhere, USA',
-              price: 525000,
-              bedrooms: 4,
-              bathrooms: 2.5,
-              squareFeet: 2100,
-              lat: 37.7848,
-              lng: -122.4294,
-              imageUrl: 'https://via.placeholder.com/300x200',
-              listingUrl: '#',
-              monthlyPayment: 2650,
-            },
-          ],
-          driveTimePolygons: [
-            {
-              address: data.locations[0].address || '123 Main St',
-              driveTime: data.locations[0].driveTime,
-              geoJson: {
-                type: 'Feature',
-                geometry: {
-                  type: 'Polygon',
-                  coordinates: [
-                    [
-                      [-122.4294, 37.7749],
-                      [-122.4194, 37.7849],
-                      [-122.4094, 37.7749],
-                      [-122.4194, 37.7649],
-                      [-122.4294, 37.7749],
-                    ],
-                  ],
-                },
-              },
-            },
-          ],
-        });
-      }
     } finally {
       setIsSearching(false);
     }
@@ -287,8 +239,6 @@ export function SearchForm() {
           <LoadingSpinner size="lg" text="Searching properties that match your criteria..." />
         </div>
       )}
-
-      {!isSearching && searchResults && <PropertyResults results={searchResults} />}
     </div>
   );
 }

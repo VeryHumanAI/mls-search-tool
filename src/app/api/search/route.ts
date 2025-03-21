@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { geocodeAddress, getDriveTimeIsochrone, parseDriveTime } from '@/lib/geoapify';
-import { searchProperties, calculateMonthlyPayment } from '@/lib/propertyService';
+import { searchProperties } from '@/lib/propertyService';
 import * as turf from '@turf/turf';
 
 // Type for request body
@@ -60,6 +60,26 @@ export async function POST(request: Request) {
     console.error('Error in search API:', error);
     return NextResponse.json(
       { error: 'Failed to process search request' },
+      { status: 500 }
+    );
+  }
+}
+
+// New API endpoint for just fetching properties directly
+export async function GET() {
+  try {
+    // Search for properties with default parameters
+    const properties = await searchProperties({
+      polygon: null, // No geographic constraints
+      maxMonthlyPayment: 3000, // Default maximum monthly payment
+      downPaymentPercent: 20, // Default down payment percentage
+    });
+
+    return NextResponse.json({ properties });
+  } catch (error) {
+    console.error('Error in properties API:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch properties' },
       { status: 500 }
     );
   }
