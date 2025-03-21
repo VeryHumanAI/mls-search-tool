@@ -1,35 +1,9 @@
 import axios from "axios";
+import getConfig from "next/config";
+import { Property, PropertySearchParams } from "@/types/property";
 
-// Types
-export type PropertySearchParams = {
-  // Geographic constraints
-  polygon: any; // GeoJSON polygon representing the combined drive time areas
-
-  // Budget constraints
-  maxMonthlyPayment: number;
-  downPaymentPercent: number;
-
-  // Optional filters
-  minBedrooms?: number;
-  minBathrooms?: number;
-  minSquareFeet?: number;
-  propertyType?: string;
-  maxDaysOnMarket?: number;
-};
-
-export type Property = {
-  id: string;
-  address: string;
-  price: number;
-  bedrooms: number;
-  bathrooms: number;
-  squareFeet: number;
-  lat: number;
-  lng: number;
-  imageUrl: string;
-  listingUrl: string;
-  monthlyPayment: number;
-};
+// Get server-side config
+const { serverRuntimeConfig } = getConfig() || { serverRuntimeConfig: {} };
 
 // Calculate monthly mortgage payment
 export function calculateMonthlyPayment(
@@ -97,8 +71,8 @@ export function calculateMaxHomePrice(
 
 // Fetch properties from RapidAPI
 export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
-  const RAPIDAPI_KEY = process.env.NEXT_RAPIDAPI_KEY;
-  const RAPIDAPI_HOST = process.env.NEXT_RAPIDAPI_HOST;
+  const RAPIDAPI_KEY = serverRuntimeConfig.NEXT_RAPIDAPI_KEY;
+  const RAPIDAPI_HOST = serverRuntimeConfig.NEXT_RAPIDAPI_HOST;
 
   if (!RAPIDAPI_KEY || !RAPIDAPI_HOST) {
     console.error("RapidAPI credentials are missing");
@@ -125,7 +99,7 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
   try {
     console.log("Fetching properties from RapidAPI...");
     const response = await axios.request(options);
-    const data = response.data;
+    const data = response.data; // response is already JSON so we don't need to parse it
 
     if (!data.properties || !Array.isArray(data.properties)) {
       console.error("Invalid response format from RapidAPI:", data);
@@ -139,7 +113,9 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
 
       return {
         id: property.property_id || property.listing_id || String(Math.random()),
-        address: `${address.line || ""}, ${address.city || ""}, ${address.state_code || ""} ${address.postal_code || ""}`,
+        address: `${address.line || ""}, ${address.city || ""}, ${
+          address.state_code || ""
+        } ${address.postal_code || ""}`,
         price: price,
         bedrooms: property.description?.beds || 0,
         bathrooms: parseFloat(property.description?.baths_consolidated || "0"),

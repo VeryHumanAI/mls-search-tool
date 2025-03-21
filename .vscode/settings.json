@@ -13,6 +13,6 @@
   "[typescriptreact]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "prettier.singleQuote": true,
+  "prettier.singleQuote": false,
   "prettier.semi": true
 }

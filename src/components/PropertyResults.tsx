@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
+import { Property, DriveTimePolygon, SearchResults } from "@/types/property";
 
 // Dynamically import Map component with no SSR
 const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), {
@@ -16,34 +18,12 @@ const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), 
 
 const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
 
-const GeoJSON = dynamic(() => import("react-leaflet").then((mod) => mod.GeoJSON), { ssr: false });
-
-// Types
-type Property = {
-  id: string;
-  address: string;
-  price: number;
-  bedrooms: number;
-  bathrooms: number;
-  squareFeet: number;
-  lat: number;
-  lng: number;
-  imageUrl: string;
-  listingUrl: string;
-  monthlyPayment: number;
-};
-
-type DriveTimePolygon = {
-  address: string;
-  driveTime: string;
-  geoJson: any;
-};
+const GeoJSON = dynamic(() => import("react-leaflet").then((mod) => mod.GeoJSON), {
+  ssr: false,
+});
 
 type PropertyResultsProps = {
-  results: {
-    properties: Property[];
-    driveTimePolygons: DriveTimePolygon[];
-  };
+  results: SearchResults;
 };
 
 export function PropertyResults({ results }: PropertyResultsProps) {
@@ -142,11 +122,16 @@ export function PropertyResults({ results }: PropertyResultsProps) {
             <Marker key={property.id} position={[property.lat, property.lng]}>
               <Popup>
                 <div className="w-64">
-                  <img
-                    src={property.imageUrl}
-                    alt={property.address}
-                    className="w-full h-32 object-cover rounded-t-md"
-                  />
+                  <div className="w-full h-32 relative">
+                    <Image
+                      src={property.imageUrl}
+                      alt={property.address}
+                      fill
+                      style={{ objectFit: "cover" }}
+                      className="rounded-t-md"
+                      unoptimized={property.imageUrl.includes("placeholder")}
+                    />
+                  </div>
                   <div className="p-2">
                     <h3 className="font-bold">${property.price.toLocaleString()}</h3>
                     <p className="text-sm">{property.address}</p>
@@ -154,7 +139,9 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                       {property.bedrooms} bd | {property.bathrooms} ba |{" "}
                       {property.squareFeet.toLocaleString()} sqft
                     </p>
-                    <p className="text-sm font-semibold mt-1">Est. ${property.monthlyPayment}/mo</p>
+                    <p className="text-sm font-semibold mt-1">
+                      Est. ${Math.round(property.monthlyPayment).toLocaleString()}/mo
+                    </p>
                     <a
                       href={property.listingUrl}
                       target="_blank"
@@ -175,11 +162,15 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {properties.map((property) => (
           <div key={property.id} className="border rounded-lg overflow-hidden shadow-md">
-            <img
-              src={property.imageUrl}
-              alt={property.address}
-              className="w-full h-48 object-cover"
-            />
+            <div className="w-full h-48 relative">
+              <Image
+                src={property.imageUrl}
+                alt={property.address}
+                fill
+                style={{ objectFit: "cover" }}
+                unoptimized={property.imageUrl.includes("placeholder")}
+              />
+            </div>
             <div className="p-4">
               <h3 className="text-xl font-bold">${property.price.toLocaleString()}</h3>
               <p className="text-gray-700 mb-2">{property.address}</p>
@@ -188,7 +179,9 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                 <span>{property.bathrooms} ba</span>
                 <span>{property.squareFeet.toLocaleString()} sqft</span>
               </div>
-              <p className="font-semibold text-gray-800 mb-3">Est. ${property.monthlyPayment}/mo</p>
+              <p className="font-semibold text-gray-800 mb-3">
+                Est. ${Math.round(property.monthlyPayment).toLocaleString()}/mo
+              </p>
               <a
                 href={property.listingUrl}
                 target="_blank"

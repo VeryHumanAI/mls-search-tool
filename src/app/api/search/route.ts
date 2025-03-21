@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { geocodeAddress, getDriveTimeIsochrone, parseDriveTime } from "@/lib/geoapify";
 import { searchProperties } from "@/lib/propertyService";
+import { Property, DriveTimePolygon } from "@/types/property";
 import * as turf from "@turf/turf";
 
 // Type for request body
@@ -13,6 +14,11 @@ type SearchRequest = {
     maxPerMonth: number;
     downPaymentPercent: number;
   };
+};
+
+type SearchResponse = {
+  properties: Property[];
+  driveTimePolygons: DriveTimePolygon[];
 };
 
 export async function POST(request: Request) {
@@ -46,14 +52,16 @@ export async function POST(request: Request) {
     });
 
     // 5. Return the results
-    return NextResponse.json({
+    const response: SearchResponse = {
       properties,
       driveTimePolygons: data.locations.map((location, index) => ({
         address: location.address,
         driveTime: location.driveTime,
         geoJson: isochroneResults[index],
       })),
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error("Error in search API:", error);
     return NextResponse.json({ error: "Failed to process search request" }, { status: 500 });
