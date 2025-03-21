@@ -1,6 +1,7 @@
 import axios from "axios";
 import getConfig from "next/config";
 import { Property, PropertySearchParams } from "@/types/property";
+import { getCachedProperties, cacheProperties } from "./cache";
 
 // Get server-side config
 const { serverRuntimeConfig } = getConfig() || { serverRuntimeConfig: {} };
@@ -71,6 +72,12 @@ export function calculateMaxHomePrice(
 
 // Fetch properties from RapidAPI
 export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
+  // Try to get properties from cache first
+  const cachedProperties = getCachedProperties();
+  if (cachedProperties) {
+    return cachedProperties;
+  }
+
   const RAPIDAPI_KEY = serverRuntimeConfig.NEXT_RAPIDAPI_KEY;
   const RAPIDAPI_HOST = serverRuntimeConfig.NEXT_RAPIDAPI_HOST;
 
@@ -99,7 +106,9 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
   try {
     console.log("Fetching properties from RapidAPI...");
     const response = await axios.request(options);
-    const data = response.data; // response is already JSON so we don't need to parse it
+
+    // Check if response data needs to be parsed
+    const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
 
     if (!data.properties || !Array.isArray(data.properties)) {
       console.error("Invalid response format from RapidAPI:", data);
@@ -107,7 +116,7 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
     }
 
     // Transform the API response into our Property type
-    return data.properties.map((property: any) => {
+    const properties = data.properties.map((property: any) => {
       const price = property.list_price || 0;
       const address = property.location?.address || {};
 
@@ -129,6 +138,11 @@ export async function fetchPropertiesFromRapidApi(): Promise<Property[]> {
         monthlyPayment: 0, // We'll calculate this later
       };
     });
+
+    // Cache the fetched properties
+    cacheProperties(properties);
+
+    return properties;
   } catch (error) {
     console.error("Error fetching properties from RapidAPI:", error);
     return [];
