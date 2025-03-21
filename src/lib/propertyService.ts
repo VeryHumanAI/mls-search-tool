@@ -1,12 +1,13 @@
 import axios from "axios";
 import getConfig from "next/config";
 import { Property, PropertySearchParams, DriveTimePolygon } from "@/types/property";
-import { getCachedProperties, cacheProperties } from "./cache";
+import { getCachedProperties, cacheProperties, clearCache } from "./cache";
 import { 
   fetchDriveTimePolygons, 
   createCombinedPolygon, 
   isPointInPolygons 
 } from "./driveTimeLocations";
+import { withRateLimit } from "./rateLimit";
 
 // Get server-side config
 const { serverRuntimeConfig } = getConfig() || { serverRuntimeConfig: {} };
@@ -75,7 +76,7 @@ export function calculateMaxHomePrice(
   return totalPrice;
 }
 
-// Fetch properties from RapidAPI
+// Fetch a single page of properties from RapidAPI
 export async function fetchPropertiesFromRapidApi(page = 1, limit = 200): Promise<{properties: Property[], totalCount: number, totalPages: number}> {
   // Try to get properties from cache first
   const cachedData = getCachedProperties(page);
@@ -113,54 +114,135 @@ export async function fetchPropertiesFromRapidApi(page = 1, limit = 200): Promis
     },
   };
 
-  try {
+  // Wrap the API call with rate limiting
+  return withRateLimit(async () => {
     console.log(`Fetching properties from RapidAPI (page ${page}, limit ${limit})...`);
-    const response = await axios.request(options);
+    
+    try {
+      const response = await axios.request(options);
 
-    // Check if response data needs to be parsed
-    const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
+      // Check if response data needs to be parsed
+      const data = typeof response.data === "string" ? JSON.parse(response.data) : response.data;
 
-    if (!data.properties || !Array.isArray(data.properties)) {
-      console.error("Invalid response format from RapidAPI:", data);
+      if (!data.properties || !Array.isArray(data.properties)) {
+        console.error("Invalid response format from RapidAPI:", data);
+        return { properties: [], totalCount: 0, totalPages: 0 };
+      }
+
+      // Get the total count of properties if available
+      const totalCount = data.matching_rows || data.total || data.properties.length;
+      const totalPages = Math.ceil(totalCount / limit);
+
+      // Transform the API response into our Property type
+      const properties = data.properties.map((property: any) => {
+        const price = property.list_price || 0;
+        const address = property.location?.address || {};
+
+        return {
+          id: property.property_id || property.listing_id || String(Math.random()),
+          address: `${address.line || ""}, ${address.city || ""}, ${
+            address.state_code || ""
+          } ${address.postal_code || ""}`,
+          price: price,
+          bedrooms: property.description?.beds || 0,
+          bathrooms: parseFloat(property.description?.baths_consolidated || "0"),
+          squareFeet: property.description?.sqft || 0,
+          lat: address.coordinate?.lat || 0,
+          lng: address.coordinate?.lon || 0,
+          imageUrl: property.primary_photo?.href || "https://via.placeholder.com/300x200",
+          listingUrl: property.permalink
+            ? `https://www.realtor.com/realestateandhomes-detail/${property.permalink}`
+            : "#",
+          monthlyPayment: 0, // We'll calculate this later
+        };
+      });
+
+      // Cache the fetched properties with pagination info
+      const result = { properties, totalCount, totalPages };
+      cacheProperties(result, page);
+
+      return result;
+    } catch (error: any) {
+      // Check if it's a rate limit error
+      if (error?.response?.status === 429) {
+        console.warn(`Rate limit hit (429) for page ${page} - letting retry mechanism handle it`);
+        // Re-throw the error so the rate limit retry mechanism can catch it
+        throw error;
+      }
+      
+      // For other errors, log and return empty result
+      console.error(`Error fetching properties from RapidAPI (page ${page}):`, error);
       return { properties: [], totalCount: 0, totalPages: 0 };
     }
+  });
+}
 
-    // Get the total count of properties if available
-    const totalCount = data.matching_rows || data.total || data.properties.length;
-    const totalPages = Math.ceil(totalCount / limit);
-
-    // Transform the API response into our Property type
-    const properties = data.properties.map((property: any) => {
-      const price = property.list_price || 0;
-      const address = property.location?.address || {};
-
-      return {
-        id: property.property_id || property.listing_id || String(Math.random()),
-        address: `${address.line || ""}, ${address.city || ""}, ${
-          address.state_code || ""
-        } ${address.postal_code || ""}`,
-        price: price,
-        bedrooms: property.description?.beds || 0,
-        bathrooms: parseFloat(property.description?.baths_consolidated || "0"),
-        squareFeet: property.description?.sqft || 0,
-        lat: address.coordinate?.lat || 0,
-        lng: address.coordinate?.lon || 0,
-        imageUrl: property.primary_photo?.href || "https://via.placeholder.com/300x200",
-        listingUrl: property.permalink
-          ? `https://www.realtor.com/realestateandhomes-detail/${property.permalink}`
-          : "#",
-        monthlyPayment: 0, // We'll calculate this later
-      };
-    });
-
-    // Cache the fetched properties with pagination info
-    const result = { properties, totalCount, totalPages };
-    cacheProperties(result, page);
-
-    return result;
+// Pre-fetch all available properties (this will respect rate limits)
+export async function prefetchAllProperties(onProgressUpdate?: (current: number, total: number) => void): Promise<{
+  properties: Property[], 
+  totalCount: number, 
+  totalPages: number,
+  loadedPages: number[]
+}> {
+  try {
+    // Get the first page to determine total pages
+    const firstPageResult = await fetchPropertiesFromRapidApi(1);
+    let totalPages = firstPageResult.totalPages;
+    let allProperties: Property[] = [...firstPageResult.properties];
+    let loadedPages = [1]; // Track which pages have been loaded
+    
+    // Update progress
+    if (onProgressUpdate) {
+      onProgressUpdate(1, totalPages);
+    }
+    
+    // Fetch remaining pages
+    const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+    
+    for (const page of remainingPages) {
+      try {
+        // Check if page is already cached
+        const cachedPage = getCachedProperties(page);
+        if (cachedPage) {
+          allProperties = [...allProperties, ...cachedPage.properties];
+          loadedPages.push(page);
+          
+          // Update progress
+          if (onProgressUpdate) {
+            onProgressUpdate(loadedPages.length, totalPages);
+          }
+          continue;
+        }
+        
+        // Fetch the page with rate limiting and retry
+        try {
+          const pageResult = await fetchPropertiesFromRapidApi(page);
+          allProperties = [...allProperties, ...pageResult.properties];
+          loadedPages.push(page);
+        } catch (pageError) {
+          console.error(`Failed to fetch page ${page} after retries:`, pageError);
+          // Continue with next page, the error has already been logged
+        }
+        
+        // Update progress
+        if (onProgressUpdate) {
+          onProgressUpdate(loadedPages.length, totalPages);
+        }
+      } catch (error) {
+        console.error(`Error fetching page ${page}:`, error);
+        // Continue with other pages even if one fails
+      }
+    }
+    
+    return {
+      properties: allProperties,
+      totalCount: firstPageResult.totalCount,
+      totalPages: totalPages,
+      loadedPages
+    };
   } catch (error) {
-    console.error(`Error fetching properties from RapidAPI (page ${page}):`, error);
-    return { properties: [], totalCount: 0, totalPages: 0 };
+    console.error("Error prefetching all properties:", error);
+    return { properties: [], totalCount: 0, totalPages: 0, loadedPages: [] };
   }
 }
 

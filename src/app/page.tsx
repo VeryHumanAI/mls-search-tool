@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { SearchForm } from "@/components/SearchForm";
 import { PropertyResults } from "@/components/PropertyResults";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { PrefetchProgress } from "@/components/PrefetchProgress";
 
 export default function Home() {
   const [searchResults, setSearchResults] = useState(null);
@@ -12,32 +13,13 @@ export default function Home() {
   const [isDirectLoading, setIsDirectLoading] = useState(false);
   const [showSearchForm, setShowSearchForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isPrefetching, setIsPrefetching] = useState(false);
+  const [showAllProperties, setShowAllProperties] = useState(false);
 
-  // Fetch properties directly when the page loads or when page changes
+  // Fetch properties when the page loads, page changes, or showAllProperties changes
   useEffect(() => {
-    async function fetchDirectProperties() {
-      setIsDirectLoading(true);
-      try {
-        const response = await fetch(`/api/search?page=${currentPage}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch properties");
-        }
-        const data = await response.json();
-        console.log("API response:", data);
-        setDirectResults({ 
-          properties: data.properties || [], 
-          driveTimePolygons: data.driveTimePolygons || [],
-          pagination: data.pagination || { currentPage: 1, totalPages: 1, totalCount: 0 }
-        });
-      } catch (error) {
-        console.error("Error fetching properties:", error);
-      } finally {
-        setIsDirectLoading(false);
-      }
-    }
-
     fetchDirectProperties();
-  }, [currentPage]);
+  }, [currentPage, showAllProperties]);
 
   // Handle search form submission
   async function handleSearch(formData, page = 1) {
@@ -102,6 +84,87 @@ export default function Home() {
       console.error("Error debugging isochrones:", error);
     }
   };
+  
+  // Handler to start prefetching all properties
+  const handlePrefetchAll = () => {
+    setIsPrefetching(true);
+  };
+  
+  // Handler for when prefetching completes
+  const handlePrefetchComplete = () => {
+    setIsPrefetching(false);
+    setShowAllProperties(true);
+    // Reload the page data
+    fetchDirectProperties();
+  };
+  
+  // Handler for when prefetching encounters an error
+  const handlePrefetchError = (message: string) => {
+    setIsPrefetching(false);
+    alert(`Error prefetching properties: ${message}`);
+  };
+  
+  // Fetch all properties that have been cached
+  async function fetchDirectProperties() {
+    setIsDirectLoading(true);
+    try {
+      // If we're showing all properties, we need to fetch them from all cached pages
+      if (showAllProperties) {
+        // First get page 1 to determine how many total pages there are
+        const response = await fetch(`/api/search?page=1`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch properties");
+        }
+        
+        const data = await response.json();
+        const totalPages = data.pagination?.totalPages || 1;
+        
+        // Start with page 1 properties
+        let allProperties = data.properties || [];
+        
+        // Fetch remaining pages if needed
+        if (totalPages > 1) {
+          for (let page = 2; page <= totalPages; page++) {
+            const pageResponse = await fetch(`/api/search?page=${page}`);
+            if (pageResponse.ok) {
+              const pageData = await pageResponse.json();
+              if (pageData.properties && Array.isArray(pageData.properties)) {
+                allProperties = [...allProperties, ...pageData.properties];
+              }
+            }
+          }
+        }
+        
+        // Set results with all properties
+        setDirectResults({
+          properties: allProperties,
+          driveTimePolygons: data.driveTimePolygons || [],
+          pagination: {
+            currentPage: 1,
+            totalPages: 1,
+            totalCount: allProperties.length
+          }
+        });
+      } else {
+        // Just fetch the current page
+        const response = await fetch(`/api/search?page=${currentPage}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch properties");
+        }
+        
+        const data = await response.json();
+        setDirectResults({
+          properties: data.properties || [],
+          driveTimePolygons: data.driveTimePolygons || [],
+          pagination: data.pagination || { currentPage: 1, totalPages: 1, totalCount: 0 }
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching properties:", error);
+    } finally {
+      setIsDirectLoading(false);
+    }
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm">
@@ -118,9 +181,16 @@ export default function Home() {
             <button
               onClick={handleRefreshProperties}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
-              disabled={isDirectLoading}
+              disabled={isDirectLoading || isPrefetching}
             >
               Refresh Data
+            </button>
+            <button
+              onClick={handlePrefetchAll}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+              disabled={isPrefetching}
+            >
+              {showAllProperties ? "Reload All Properties" : "Load All Properties"}
             </button>
             <button
               onClick={handleDebugIsochrones}
@@ -138,13 +208,24 @@ export default function Home() {
           </div>
         )}
 
-        {isLoading && (
+        {/* Prefetch Progress */}
+        {isPrefetching && (
+          <div className="my-8">
+            <PrefetchProgress 
+              onComplete={handlePrefetchComplete}
+              onError={handlePrefetchError}
+            />
+          </div>
+        )}
+
+        {/* Search Results */}
+        {isLoading && !isPrefetching && (
           <div className="flex justify-center my-12">
             <LoadingSpinner />
           </div>
         )}
 
-        {searchResults && !isLoading && (
+        {searchResults && !isLoading && !isPrefetching && (
           <div className="mb-12">
             <h3 className="text-xl font-semibold mb-4">Search Results</h3>
             <PropertyResults 
@@ -158,25 +239,33 @@ export default function Home() {
           </div>
         )}
 
-        <div className="mt-8">
-          <h3 className="text-xl font-semibold mb-4">Available Properties</h3>
-          {isDirectLoading ? (
-            <div className="flex justify-center my-8">
-              <LoadingSpinner />
-            </div>
-          ) : directResults?.properties?.length > 0 ? (
-            <PropertyResults 
-              results={directResults} 
-              onPageChange={handlePageChange}
-            />
-          ) : (
-            <div className="p-8 text-center bg-gray-50 rounded-lg">
-              <p className="text-gray-600">
-                No properties available. Please try a different search.
-              </p>
-            </div>
-          )}
-        </div>
+        {/* All Properties */}
+        {!isPrefetching && (
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">
+              {showAllProperties ? "All Properties" : "Available Properties"}
+              {showAllProperties && directResults?.properties?.length > 0 && 
+                ` (${directResults.properties.length.toLocaleString()})`
+              }
+            </h3>
+            {isDirectLoading ? (
+              <div className="flex justify-center my-8">
+                <LoadingSpinner />
+              </div>
+            ) : directResults?.properties?.length > 0 ? (
+              <PropertyResults 
+                results={directResults} 
+                onPageChange={showAllProperties ? undefined : handlePageChange}
+              />
+            ) : (
+              <div className="p-8 text-center bg-gray-50 rounded-lg">
+                <p className="text-gray-600">
+                  No properties available. Please try a different search.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
