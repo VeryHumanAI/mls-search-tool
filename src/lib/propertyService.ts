@@ -226,6 +226,147 @@ export async function fetchPropertiesFromRapidApi(
 }
 
 // Pre-fetch all available properties (this will respect rate limits)
+// Get all cached properties at once without pagination
+export async function getAllCachedProperties(
+  params: PropertySearchParams,
+  enabledPolygonIndices?: number[]
+): Promise<{
+  properties: Property[];
+  driveTimePolygons: DriveTimePolygon[];
+  pagination: {currentPage: number, totalPages: number, totalCount: number};
+  filterStats: FilterStats;
+}> {
+  try {
+    // Calculate maximum home price based on monthly payment and down payment
+    const maxPrice = calculateMaxHomePrice(params.maxMonthlyPayment, params.downPaymentPercent);
+    console.log(`Searching ALL properties with max price: $${maxPrice.toLocaleString()}`);
+    
+    if (enabledPolygonIndices) {
+      console.log(`Filtering by polygon indices: ${enabledPolygonIndices.join(', ')}`);
+    }
+
+    // Fetch drive time polygons
+    const driveTimePolygons = await fetchDriveTimePolygons();
+    
+    // Get all cached pages
+    // First get page 1 to determine how many total pages there are
+    const firstPageResult = getCachedProperties(1);
+    if (!firstPageResult) {
+      console.log("No cached properties found. Please prefetch properties first.");
+      return {
+        properties: [],
+        driveTimePolygons,
+        pagination: { currentPage: 1, totalPages: 0, totalCount: 0 },
+        filterStats: {
+          totalPropertiesOnPage: 0,
+          filteredByPrice: 0,
+          filteredByLocation: 0,
+          remainingAfterFilters: 0,
+          maxPriceFilter: maxPrice,
+          maxMonthlyPaymentFilter: params.maxMonthlyPayment,
+          downPaymentPercent: params.downPaymentPercent,
+          enabledPolygonCount: enabledPolygonIndices ? enabledPolygonIndices.length : driveTimePolygons.length
+        }
+      };
+    }
+    
+    // Determine how many pages we have cached
+    const totalPages = firstPageResult.totalPages;
+    
+    // Load all properties from all pages
+    let allProperties: Property[] = [];
+    for (let page = 1; page <= totalPages; page++) {
+      const pageData = getCachedProperties(page);
+      if (pageData && pageData.properties) {
+        allProperties = [...allProperties, ...pageData.properties];
+      }
+    }
+    
+    console.log(`Loaded ${allProperties.length} total properties from ${totalPages} cached pages`);
+    console.log(`Filtering ${allProperties.length} properties with max price: $${maxPrice.toLocaleString()}`);
+    
+    // Filter all properties
+    const filteredProperties = allProperties
+      .filter((property) => {
+        const monthlyPayment = calculateMonthlyPayment(property.price, params.downPaymentPercent);
+        const priceFilter = property.price <= maxPrice;
+        
+        // Skip detailed logging for most properties since there could be thousands
+        if (!priceFilter && Math.random() < 0.01) { // Only log about 1% of filtered properties
+          console.log(`PRICE FILTER: Property ID ${property.id}: $${property.price.toLocaleString()} exceeds max price $${maxPrice.toLocaleString()} [Address: ${property.address}]`);
+        }
+        
+        // If already failing price filter, return early before location check
+        if (!priceFilter) return false;
+        
+        // Filter by location - must be inside ALL of the enabled drive time polygons
+        if (property.lat && property.lng) {
+          const locationFilter = isPointInPolygons(property.lat, property.lng, driveTimePolygons, enabledPolygonIndices);
+          return locationFilter;
+        }
+        
+        return false; // Skip properties without coordinates
+      })
+      .map((property) => ({
+        ...property,
+        monthlyPayment: calculateMonthlyPayment(property.price, params.downPaymentPercent),
+      }));
+    
+    // Apply optional filters
+    let result = filteredProperties;
+    
+    // Filter by minimum bedrooms
+    if (params.minBedrooms) {
+      result = result.filter(property => property.bedrooms >= params.minBedrooms!);
+    }
+    
+    // Filter by minimum bathrooms
+    if (params.minBathrooms) {
+      result = result.filter(property => property.bathrooms >= params.minBathrooms!);
+    }
+    
+    // Filter by minimum square feet
+    if (params.minSquareFeet) {
+      result = result.filter(property => property.squareFeet >= params.minSquareFeet!);
+    }
+    
+    // Calculate filtering statistics
+    const totalAfterPriceFilter = allProperties.filter(p => p.price <= maxPrice).length;
+    const totalFilteredByPrice = allProperties.length - totalAfterPriceFilter;
+    const totalFilteredByLocation = totalAfterPriceFilter - result.length;
+    
+    console.log(`ALL PROPERTIES FILTER STATS:
+    - Starting with ${allProperties.length} total properties
+    - Filtered out ${totalFilteredByPrice} properties by price (${Math.round(totalFilteredByPrice/allProperties.length*100)}%)
+    - Filtered out ${totalFilteredByLocation} properties by location (${Math.round(totalFilteredByLocation/allProperties.length*100)}%)
+    - Remaining: ${result.length} properties (${Math.round(result.length/allProperties.length*100)}% of original)
+    `);
+    
+    return {
+      properties: result,
+      driveTimePolygons,
+      pagination: {
+        currentPage: 1,
+        totalPages: 1,
+        totalCount: result.length
+      },
+      filterStats: {
+        totalPropertiesOnPage: allProperties.length,
+        filteredByPrice: totalFilteredByPrice,
+        filteredByLocation: totalFilteredByLocation,
+        remainingAfterFilters: result.length,
+        maxPriceFilter: maxPrice,
+        maxMonthlyPaymentFilter: params.maxMonthlyPayment,
+        downPaymentPercent: params.downPaymentPercent,
+        enabledPolygonCount: enabledPolygonIndices ? enabledPolygonIndices.length : driveTimePolygons.length
+      }
+    };
+  } catch (error) {
+    console.error("Error getting all cached properties:", error);
+    throw error;
+  }
+}
+
 export async function prefetchAllProperties(
   onProgressUpdate?: (current: number, total: number) => void
 ): Promise<{

@@ -111,55 +111,35 @@ export default function Home() {
   async function fetchDirectProperties() {
     setIsDirectLoading(true);
     try {
-      // Create request URL with query params
-      const baseUrl = `/api/search?page=${currentPage}`;
-      const url = enabledPolygonIndices 
-        ? `${baseUrl}&enabledPolygonIndices=${JSON.stringify(enabledPolygonIndices)}` 
-        : baseUrl;
+      // Prepare URL with parameters
+      let url;
       
-      // If we're showing all properties, we need to fetch them from all cached pages
       if (showAllProperties) {
-        // First get page 1 to determine how many total pages there are
+        // Use the new "all" mode to fetch all properties at once
+        url = `/api/search?all=true`;
+        if (enabledPolygonIndices && enabledPolygonIndices.length > 0) {
+          url += `&enabledPolygonIndices=${JSON.stringify(enabledPolygonIndices)}`;
+        }
+        
+        console.log("Fetching ALL properties at once with URL:", url);
+        
         const response = await fetch(url);
         if (!response.ok) {
-          throw new Error("Failed to fetch properties");
+          throw new Error("Failed to fetch all properties");
         }
         
         const data = await response.json();
-        const totalPages = data.pagination?.totalPages || 1;
+        console.log(`Received ${data.properties?.length || 0} properties from all-mode API`);
         
-        // Start with page 1 properties
-        let allProperties = data.properties || [];
-        
-        // Fetch remaining pages if needed
-        if (totalPages > 1) {
-          for (let page = 2; page <= totalPages; page++) {
-            const pageUrl = enabledPolygonIndices 
-              ? `/api/search?page=${page}&enabledPolygonIndices=${JSON.stringify(enabledPolygonIndices)}` 
-              : `/api/search?page=${page}`;
-            
-            const pageResponse = await fetch(pageUrl);
-            if (pageResponse.ok) {
-              const pageData = await pageResponse.json();
-              if (pageData.properties && Array.isArray(pageData.properties)) {
-                allProperties = [...allProperties, ...pageData.properties];
-              }
-            }
-          }
+        // Set results directly from the API response
+        setDirectResults(data);
+      } else {
+        // Regular paginated mode - just fetch the current page
+        url = `/api/search?page=${currentPage}`;
+        if (enabledPolygonIndices && enabledPolygonIndices.length > 0) {
+          url += `&enabledPolygonIndices=${JSON.stringify(enabledPolygonIndices)}`;
         }
         
-        // Set results with all properties
-        setDirectResults({
-          properties: allProperties,
-          driveTimePolygons: data.driveTimePolygons || [],
-          pagination: {
-            currentPage: 1,
-            totalPages: 1,
-            totalCount: allProperties.length
-          }
-        });
-      } else {
-        // Just fetch the current page
         const response = await fetch(url);
         if (!response.ok) {
           throw new Error("Failed to fetch properties");
@@ -169,7 +149,8 @@ export default function Home() {
         setDirectResults({
           properties: data.properties || [],
           driveTimePolygons: data.driveTimePolygons || [],
-          pagination: data.pagination || { currentPage: 1, totalPages: 1, totalCount: 0 }
+          pagination: data.pagination || { currentPage: 1, totalPages: 1, totalCount: 0 },
+          filterStats: data.filterStats
         });
       }
     } catch (error) {
@@ -255,12 +236,26 @@ export default function Home() {
         {/* All Properties */}
         {!isPrefetching && (
           <div className="mt-8">
-            <h3 className="text-xl font-semibold mb-4">
-              {showAllProperties ? "All Properties" : "Available Properties"}
-              {showAllProperties && directResults?.properties?.length > 0 && 
-                ` (${directResults.properties.length.toLocaleString()})`
-              }
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-semibold">
+                {showAllProperties ? "All Properties" : "Available Properties"}
+                {showAllProperties && directResults?.properties?.length > 0 && 
+                  ` (${directResults.properties.length.toLocaleString()})`
+                }
+              </h3>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">Show All Properties:</span>
+                <label className="inline-flex items-center cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={showAllProperties}
+                    onChange={() => setShowAllProperties(!showAllProperties)}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+            </div>
             {isDirectLoading ? (
               <div className="flex justify-center my-8">
                 <LoadingSpinner />
