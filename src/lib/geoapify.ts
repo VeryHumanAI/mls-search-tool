@@ -1,14 +1,14 @@
-import axios from 'axios';
+import axios from "axios";
 
-const GEOAPIFY_API_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || 'YOUR_API_KEY_HERE';
+const GEOAPIFY_API_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || "YOUR_API_KEY_HERE";
 
 // Geocode an address to get lat/lng coordinates
 export async function geocodeAddress(address: string) {
   try {
-    const response = await axios.get('https://api.geoapify.com/v1/geocode/search', {
+    const response = await axios.get("https://api.geoapify.com/v1/geocode/search", {
       params: {
         text: address,
-        format: 'json',
+        format: "json",
         apiKey: GEOAPIFY_API_KEY,
       },
     });
@@ -21,10 +21,10 @@ export async function geocodeAddress(address: string) {
         formatted: result.formatted,
       };
     }
-    
-    throw new Error('No results found for this address');
+
+    throw new Error("No results found for this address");
   } catch (error) {
-    console.error('Error geocoding address:', error);
+    console.error("Error geocoding address:", error);
     throw error;
   }
 }
@@ -32,20 +32,20 @@ export async function geocodeAddress(address: string) {
 // Get isochrone (drive time polygon) for a location
 export async function getDriveTimeIsochrone(lat: number, lon: number, timeMinutes: number) {
   try {
-    const response = await axios.get('https://api.geoapify.com/v1/isochrone', {
+    const response = await axios.get("https://api.geoapify.com/v1/isochrone", {
       params: {
         lat,
         lon,
-        type: 'drive',
+        type: "drive",
         range: timeMinutes * 60, // Convert minutes to seconds
-        rangeType: 'time',
+        rangeType: "time",
         apiKey: GEOAPIFY_API_KEY,
       },
     });
 
     return response.data;
   } catch (error) {
-    console.error('Error getting isochrone:', error);
+    console.error("Error getting isochrone:", error);
     throw error;
   }
 }

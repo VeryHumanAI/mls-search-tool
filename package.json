@@ -7,7 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint",
+    "format": "prettier --write .",
+    "lint:fix": "eslint --fix ."
   },
   "keywords": [],
   "author": "",
@@ -32,6 +35,9 @@
     "yup": "^1.6.1"
   },
   "devDependencies": {
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "prettier": "^3.5.3",
     "tailwindcss": "^4.0.15"
   }
 }

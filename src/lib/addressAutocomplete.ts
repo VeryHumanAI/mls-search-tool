@@ -1,6 +1,6 @@
-import axios from 'axios';
+import axios from "axios";
 
-const GEOAPIFY_API_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || 'YOUR_API_KEY_HERE';
+const GEOAPIFY_API_KEY = process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY || "YOUR_API_KEY_HERE";
 
 export type AutocompleteResult = {
   address: string;
@@ -19,12 +19,12 @@ export async function getAddressSuggestions(
   if (!query || query.length < 3) return [];
 
   try {
-    const response = await axios.get('https://api.geoapify.com/v1/geocode/autocomplete', {
+    const response = await axios.get("https://api.geoapify.com/v1/geocode/autocomplete", {
       params: {
         text: query,
-        format: 'json',
+        format: "json",
         limit,
-        filter: 'countrycode:us', // Limit to US addresses
+        filter: "countrycode:us", // Limit to US addresses
         apiKey: GEOAPIFY_API_KEY,
       },
     });
@@ -32,28 +32,20 @@ export async function getAddressSuggestions(
     if (!response.data.results) return [];
 
     return response.data.results.map((result: any) => {
-      const {
-        formatted,
-        place_id,
-        city,
-        state,
-        postcode,
-        lat,
-        lon
-      } = result;
+      const { formatted, place_id, city, state, postcode, lat, lon } = result;
 
       return {
         address: formatted,
         placeId: place_id,
-        city: city || '',
-        state: state || '',
-        zipcode: postcode || '',
+        city: city || "",
+        state: state || "",
+        zipcode: postcode || "",
         lat,
         lon,
       };
     });
   } catch (error) {
-    console.error('Error fetching address suggestions:', error);
+    console.error("Error fetching address suggestions:", error);
     return [];
   }
 }

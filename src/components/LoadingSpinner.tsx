@@ -1,29 +1,29 @@
 "use client";
 
-import React from 'react';
+import React from "react";
 
 type LoadingSpinnerProps = {
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   color?: string;
   text?: string;
 };
 
 export function LoadingSpinner({
-  size = 'md',
-  color = 'blue',
-  text = 'Loading...',
+  size = "md",
+  color = "blue",
+  text = "Loading...",
 }: LoadingSpinnerProps) {
   const sizeClasses = {
-    sm: 'w-5 h-5',
-    md: 'w-8 h-8',
-    lg: 'w-12 h-12',
+    sm: "w-5 h-5",
+    md: "w-8 h-8",
+    lg: "w-12 h-12",
   };
 
   const colorClasses = {
-    blue: 'text-blue-500',
-    green: 'text-green-500',
-    red: 'text-red-500',
-    gray: 'text-gray-500',
+    blue: "text-blue-500",
+    green: "text-green-500",
+    red: "text-red-500",
+    gray: "text-gray-500",
   };
 
   return (

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { getAddressSuggestions, AutocompleteResult } from '@/lib/addressAutocomplete';
+import React, { useState, useEffect, useRef } from "react";
+import { getAddressSuggestions, AutocompleteResult } from "@/lib/addressAutocomplete";
 
 type AddressAutocompleteProps = {
   value: string;
@@ -15,8 +15,8 @@ type AddressAutocompleteProps = {
 export function AddressAutocomplete({
   value,
   onChange,
-  placeholder = 'Enter address',
-  className = '',
+  placeholder = "Enter address",
+  className = "",
   required = false,
   error,
 }: AddressAutocompleteProps) {
@@ -46,7 +46,7 @@ export function AddressAutocomplete({
         setSuggestions(results);
         setIsOpen(results.length > 0);
       } catch (error) {
-        console.error('Error fetching suggestions:', error);
+        console.error("Error fetching suggestions:", error);
       } finally {
         setIsLoading(false);
       }
@@ -69,9 +69,9 @@ export function AddressAutocomplete({
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
@@ -96,13 +96,13 @@ export function AddressAutocomplete({
         onChange={handleInputChange}
         placeholder={placeholder}
         className={`w-full p-2 border rounded-md ${
-          error ? 'border-red-500' : 'border-gray-300'
+          error ? "border-red-500" : "border-gray-300"
         } ${className}`}
         onFocus={() => suggestions.length > 0 && setIsOpen(true)}
         required={required}
         autoComplete="off"
       />
-      
+
       {isLoading && (
         <div className="absolute right-3 top-2">
           <svg
@@ -127,7 +127,7 @@ export function AddressAutocomplete({
           </svg>
         </div>
       )}
-      
+
       {isOpen && suggestions.length > 0 && (
         <ul
           ref={suggestionsRef}
@@ -149,7 +149,7 @@ export function AddressAutocomplete({
           ))}
         </ul>
       )}
-      
+
       {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
     </div>
   );

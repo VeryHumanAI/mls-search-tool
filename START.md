@@ -5,22 +5,27 @@ To start the application, follow these steps:
 1. First, make sure you have Node.js installed on your system.
 
 2. Open a terminal and navigate to the mls-search-tool directory:
+
    ```
    cd /Users/conroywhitney/code/claude/mls-search-tool/mls-search-tool
    ```
 
 3. Install dependencies (if you haven't already):
+
    ```
    npm install
    ```
 
 4. Create a `.env.local` file and add your Geoapify API key:
+
    ```
    NEXT_PUBLIC_GEOAPIFY_API_KEY=your_geoapify_api_key
    ```
+
    You can get a free API key by signing up at [Geoapify](https://www.geoapify.com/).
 
 5. Start the development server:
+
    ```
    npm run dev
    ```

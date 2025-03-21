@@ -27,23 +27,27 @@ A Next.js application that allows users to search for properties within specific
 ## Setup
 
 1. Clone the repository
+
    ```
    git clone <repository-url>
    cd mls-search-tool
    ```
 
 2. Install dependencies
+
    ```
    npm install
    ```
 
 3. Create a `.env.local` file in the root directory with your API keys:
+
    ```
    NEXT_PUBLIC_GEOAPIFY_API_KEY=your_geoapify_api_key
    NEXT_PUBLIC_MLS_API_KEY=your_mls_api_key
    ```
 
 4. Run the development server
+
    ```
    npm run dev
    ```
@@ -55,6 +59,7 @@ A Next.js application that allows users to search for properties within specific
 ### Geoapify
 
 This application uses Geoapify for:
+
 - Address geocoding (converting addresses to coordinates)
 - Isochrone API (calculating drive time polygons)
 - Address autocomplete
@@ -64,6 +69,7 @@ This application uses Geoapify for:
 The application is set up to work with any MLS API or real estate data provider. Currently, it uses mock data for demonstration purposes.
 
 To integrate with a real MLS API:
+
 1. Modify `src/lib/propertyService.ts` to call your MLS API
 2. Update the property data structure if necessary
 3. Adjust the search parameters to match your API requirements
