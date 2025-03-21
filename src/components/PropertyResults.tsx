@@ -176,9 +176,14 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                   style={() => ({
                     color: getColorForIndex(index),
                     weight: 2,
-                    opacity: 0.6,
-                    fillOpacity: 0.2,
+                    opacity: 0.7,
+                    fillOpacity: 0.15,
                   })}
+                  onEachFeature={(feature, layer) => {
+                    const driveTime = feature.properties?.driveTime || polygon.driveTime;
+                    const address = feature.properties?.address || polygon.address;
+                    layer.bindTooltip(`${address} (${driveTime})`);
+                  }}
                 />
               ))}
 

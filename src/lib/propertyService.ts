@@ -165,8 +165,14 @@ export async function searchProperties(params: PropertySearchParams): Promise<{p
     // Fetch drive time polygons
     const driveTimePolygons = await fetchDriveTimePolygons();
     
-    // Create a combined polygon for visualization
-    const combinedPolygon = createCombinedPolygon(driveTimePolygons);
+    // Create a combined polygon for visualization (not critical if it fails)
+    let combinedPolygon;
+    try {
+      combinedPolygon = createCombinedPolygon(driveTimePolygons);
+    } catch (e) {
+      console.warn("Error creating combined polygon:", e);
+      // Continue without the combined polygon
+    }
 
     // Fetch properties from RapidAPI
     const properties = await fetchPropertiesFromRapidApi();

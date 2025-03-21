@@ -135,22 +135,44 @@ export function createCombinedPolygon(polygons: DriveTimePolygon[]): any {
       return null;
     }
 
-    // Convert each polygon to a Turf.js feature
-    const features = polygons.map(polygon => {
-      // If the geoJson is already a FeatureCollection, extract the first feature
-      if (polygon.geoJson.type === 'FeatureCollection') {
-        return polygon.geoJson.features[0];
-      }
-      return polygon.geoJson;
+    // Debug info about polygons
+    polygons.forEach((polygon, index) => {
+      console.log(`Polygon ${index} (${polygon.address}): Type=${polygon.geoJson?.type}, HasFeatures=${polygon.geoJson?.features?.length > 0}`);
     });
 
-    // Use Turf.js union to combine the polygons
-    let combinedPolygon = features[0];
-    for (let i = 1; i < features.length; i++) {
-      combinedPolygon = turf.union(combinedPolygon, features[i]);
+    // Instead of trying to union, let's just create a FeatureCollection
+    // with all the individual polygons for visualization
+    const allFeatures = [];
+    
+    for (const polygon of polygons) {
+      if (polygon.geoJson?.type === 'FeatureCollection' && polygon.geoJson.features?.length > 0) {
+        // Add all features from the FeatureCollection
+        for (const feature of polygon.geoJson.features) {
+          if (feature && feature.geometry) {
+            // Add metadata about the source
+            if (!feature.properties) feature.properties = {};
+            feature.properties.address = polygon.address;
+            feature.properties.driveTime = polygon.driveTime;
+            allFeatures.push(feature);
+          }
+        }
+      } else if (polygon.geoJson?.type === 'Feature' && polygon.geoJson.geometry) {
+        // Add the feature directly
+        const feature = polygon.geoJson;
+        if (!feature.properties) feature.properties = {};
+        feature.properties.address = polygon.address;
+        feature.properties.driveTime = polygon.driveTime;
+        allFeatures.push(feature);
+      }
     }
 
-    return combinedPolygon;
+    console.log(`Created collection with ${allFeatures.length} features`);
+
+    // Return a FeatureCollection with all the polygons
+    return {
+      type: 'FeatureCollection',
+      features: allFeatures
+    };
   } catch (error) {
     console.error("Error creating combined polygon:", error);
     return null;
