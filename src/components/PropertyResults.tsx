@@ -100,6 +100,18 @@ export function PropertyResults({ results }: PropertyResultsProps) {
       ? { lat: properties[0].lat, lng: properties[0].lng }
       : { lat: 35.0456, lng: -85.3097 }; // Default to Chattanooga if no properties
 
+  // Function to get a better quality image URL
+  const getBetterImageUrl = (property: Property): string => {
+    // If it's a placeholder image, return it as is
+    if (property.imageUrl.includes("placeholder")) {
+      return property.imageUrl;
+    }
+
+    // For RapidAPI realtor images, use a larger format by modifying the URL
+    // Original thumbnail URLs end with "s.jpg", replace with "l.jpg" for larger images
+    return property.imageUrl.replace(/s\.jpg$/, "l.jpg");
+  };
+
   if (!isMounted) {
     return <div className="mt-4 p-4 bg-gray-100 rounded-md">Loading results...</div>;
   }
@@ -177,7 +189,7 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                     <div className="w-64">
                       <div className="w-full h-32 relative">
                         <Image
-                          src={property.imageUrl}
+                          src={getBetterImageUrl(property)}
                           alt={property.address}
                           fill
                           style={{ objectFit: "cover" }}
@@ -199,7 +211,7 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                           href={property.listingUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-center mt-2 bg-blue-500 hover:bg-blue-600 text-white py-1 px-2 rounded text-sm"
+                          className="block text-center mt-2 bg-blue-600 hover:bg-blue-700 text-white py-1 px-2 rounded text-sm"
                         >
                           View Listing
                         </a>
@@ -223,11 +235,13 @@ export function PropertyResults({ results }: PropertyResultsProps) {
             >
               <div className="w-full h-48 relative">
                 <Image
-                  src={property.imageUrl}
+                  src={getBetterImageUrl(property)}
                   alt={property.address}
                   fill
                   style={{ objectFit: "cover" }}
                   unoptimized={property.imageUrl.includes("placeholder")}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  quality={85}
                 />
               </div>
               <div className="p-4 flex flex-col flex-grow">
@@ -277,7 +291,7 @@ export function PropertyResults({ results }: PropertyResultsProps) {
                   href={property.listingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-center bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition mt-2"
+                  className="block text-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition mt-2"
                 >
                   View Listing
                 </a>
