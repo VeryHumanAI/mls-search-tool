@@ -207,6 +207,22 @@ export async function fetchPropertiesFromRapidApi(
         const price = property.list_price || 0;
         const address = property.location?.address || {};
 
+        // Get the property status - check various fields where status might be stored
+        let status =
+          property.status || property.listing_status || property.description?.status || "unknown";
+
+        // Log status values to understand the data better (for first few properties only)
+        if (data.properties.indexOf(property) < 3) {
+          console.log(`Property status details for ${property.property_id || property.listing_id}:
+            - status: ${property.status || "not found"}
+            - listing_status: ${property.listing_status || "not found"}
+            - description.status: ${property.description?.status || "not found"}
+            - flags: ${JSON.stringify(property.flags || {})}
+            - description.type: ${property.description?.type || "not found"}
+            - tags: ${JSON.stringify(property.tags || [])}
+          `);
+        }
+
         return {
           id: property.property_id || property.listing_id || String(Math.random()),
           address: `${address.line || ""}, ${address.city || ""}, ${
@@ -223,6 +239,8 @@ export async function fetchPropertiesFromRapidApi(
             ? `https://www.realtor.com/realestateandhomes-detail/${property.permalink}`
             : "#",
           monthlyPayment: 0, // We'll calculate this later
+          status: status.toLowerCase(), // Store the status in lowercase for consistent filtering
+          flags: property.flags || {},
         };
       });
 
@@ -362,6 +380,25 @@ export async function getAllCachedProperties(
     if (params.minSquareFeet) {
       result = result.filter((property) => property.squareFeet >= params.minSquareFeet!);
     }
+
+    // Filter by active status - only show active listings
+    // Exclude pending, contingent, sold, etc.
+    const beforeStatusCount = result.length;
+    result = result.filter((property) => {
+      const statusActive = !property.status || property.status.toLowerCase() == "for_sale";
+      // flags:
+      //   is_coming_soon:null
+      //   is_contingent:null
+      //   is_foreclosure:null
+      //   is_new_construction:null
+      //   is_new_listing:true
+      //   is_pending:null
+      //   is_price_reduced:null
+
+      return statusActive;
+    });
+
+    console.log(`Status filter: Removed ${beforeStatusCount - result.length} non-active listings`);
 
     // Calculate filtering statistics
     const totalAfterPriceFilter = allProperties.filter((p) => p.price <= maxPrice).length;
@@ -599,6 +636,22 @@ export async function searchProperties(
     if (params.minSquareFeet) {
       result = result.filter((property) => property.squareFeet >= params.minSquareFeet!);
     }
+
+    // Filter by active status - only show active listings
+    // Exclude pending, contingent, sold, etc.
+    const beforeStatusCount = result.length;
+    result = result.filter((property) => {
+      return (
+        (!property.status || property.status == "for_sale") &&
+        !(
+          property.flags.is_contingent ||
+          property.flags.is_foreclosure ||
+          property.flags.is_pending
+        )
+      );
+    });
+
+    console.log(`Status filter: Removed ${beforeStatusCount - result.length} non-active listings`);
 
     // Calculate how many properties were filtered by each criteria
     const totalAfterPriceFilter = properties.filter((p) => p.price <= maxPrice).length;

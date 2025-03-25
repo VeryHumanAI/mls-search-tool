@@ -10,6 +10,16 @@ export interface Property {
   imageUrl: string;
   listingUrl: string;
   monthlyPayment: number;
+  status?: string;
+  flags: {
+    is_coming_soon?: boolean;
+    is_contingent?: boolean;
+    is_foreclosure?: boolean;
+    is_new_construction?: boolean;
+    is_new_listing?: boolean;
+    is_pending?: boolean;
+    is_price_reduced?: boolean;
+  };
 }
 
 export interface PropertySearchParams {
